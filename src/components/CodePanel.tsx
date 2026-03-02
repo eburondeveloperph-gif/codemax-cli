@@ -265,7 +265,7 @@ export default function CodePanel({ files, streamingContent, isStreaming }: Prop
   }, [files]);
 
   const { code: liveCode, path: livePath } = useMemo(() => extractLiveCode(streamingContent), [streamingContent]);
-  const displayFile = files.find((f) => f.path === activeFile);
+  const displayFile = files.find((f) => f.path === activeFile) || (files.length > 0 ? files[0] : undefined);
   // During streaming: show live code if actively streaming a code block, otherwise show the latest completed file
   const editorCode = isStreaming
     ? (liveCode || displayFile?.content || streamingContent)

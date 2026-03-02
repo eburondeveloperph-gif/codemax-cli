@@ -257,15 +257,38 @@ export default function Home() {
           finalFiles = parsed;
           setDisplayedFiles(parsed);
         } else if (full.includes("```")) {
-          const codeBlocks = [...full.matchAll(/```(\w*)\n([\s\S]*?)```/g)];
-          if (codeBlocks.length > 0) {
-            finalFiles = codeBlocks.map((m, i) => ({
-              path: `generated-${i + 1}.${m[1] || "txt"}`,
-              content: m[2].trimEnd(),
-              language: m[1] || "text",
-            }));
-            setDisplayedFiles(finalFiles);
+          // Fallback: extract code blocks even without identified file paths
+          const codeBlocks: { lang: string; content: string }[] = [];
+          const blockRegex = /```(\w*)[^\n]*\n([\s\S]*?)```/g;
+          let match;
+          while ((match = blockRegex.exec(full)) !== null) {
+            const content = match[2].trimEnd();
+            if (content.trim()) codeBlocks.push({ lang: match[1] || "text", content });
           }
+          if (codeBlocks.length > 0) {
+            // Try to infer file extensions from language
+            const langToExt: Record<string, string> = {
+              html: "html", css: "css", javascript: "js", js: "js",
+              typescript: "ts", ts: "ts", tsx: "tsx", jsx: "jsx",
+              python: "py", py: "py", json: "json", bash: "sh", sh: "sh",
+              go: "go", rust: "rs", yaml: "yml", md: "md",
+            };
+            finalFiles = codeBlocks.map((b, i) => {
+              const ext = langToExt[b.lang] || b.lang || "txt";
+              // If only one block and it looks like HTML, name it index.html
+              const name = codeBlocks.length === 1 && ext === "html" ? "index" : `generated-${i + 1}`;
+              return { path: `${name}.${ext}`, content: b.content, language: b.lang || "text" };
+            });
+            setDisplayedFiles(finalFiles);
+          } else {
+            // Even raw content with no fenced blocks — show as single file
+            setDisplayedFiles([{ path: "response.md", content: full, language: "markdown" }]);
+            finalFiles = [{ path: "response.md", content: full, language: "markdown" }];
+          }
+        } else if (full.trim().length > 50) {
+          // No code blocks at all — show raw response in editor
+          setDisplayedFiles([{ path: "response.md", content: full, language: "markdown" }]);
+          finalFiles = [{ path: "response.md", content: full, language: "markdown" }];
         }
 
         setStreamingPaths([]);

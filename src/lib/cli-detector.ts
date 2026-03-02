@@ -253,7 +253,7 @@ export async function detectCLIEndpoints(): Promise<CLIEndpoint[]> {
         if (verRes?.ok) { const d = await verRes.json(); version = d.version; }
         detected.push({
           id: "tunnel-ollama",
-          name: `Tunnel · Ollama${model ? ` — ${model.split(":")[0]}` : ""}`,
+          name: `EU-server · Ollama${model ? ` — ${model.split(":")[0]}` : ""}`,
           url: `${tunnelBase}/api/chat`,
           status: "online",
           type: "http",
@@ -265,7 +265,7 @@ export async function detectCLIEndpoints(): Promise<CLIEndpoint[]> {
     } else {
       detected.push({
         id: "tunnel-ollama-offline",
-        name: "Tunnel · Ollama",
+        name: "EU-server · Ollama",
         url: `${tunnelBase}/api/chat`,
         status: "offline",
         type: "http",
