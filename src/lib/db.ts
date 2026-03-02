@@ -6,10 +6,13 @@ import { Pool, type PoolConfig } from "pg";
 import crypto from "crypto";
 
 // ─── Connection ────────────────────────────────────────────────────
+const isProduction = process.env.NODE_ENV === "production" || process.env.VERCEL === "1";
+
 const poolConfig: PoolConfig = {
   connectionString: process.env.DATABASE_URL ?? "postgresql://master@localhost:5432/eburon_copilot",
-  max: 10,
+  max: isProduction ? 5 : 10,
   idleTimeoutMillis: 30000,
+  ...(isProduction && { ssl: { rejectUnauthorized: false } }),
 };
 
 let _pool: Pool | null = null;

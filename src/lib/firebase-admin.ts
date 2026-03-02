@@ -1,7 +1,7 @@
 /**
  * Firebase Admin SDK — Server-side token verification
  */
-import { initializeApp, getApps, cert, type App } from "firebase-admin/app";
+import { initializeApp, getApps, type App } from "firebase-admin/app";
 import { getAuth, type Auth } from "firebase-admin/auth";
 
 let _adminApp: App | undefined;
