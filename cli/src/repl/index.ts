@@ -1,6 +1,6 @@
 /**
  * Eburon Copilot CLI — Interactive REPL
- * Terminal-interactive AI coding agent (like Codex CLI / Gemini CLI)
+ * Terminal-interactive AI coding agent
  */
 import { createInterface } from "readline";
 import { CONFIG } from "../core/config.js";

@@ -46,9 +46,9 @@ function OverviewSection() {
       <P>It operates in four modes:</P>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-4">
         {[
-          { name: "CLI (REPL)", desc: "Interactive terminal like Codex CLI / Gemini CLI", cmd: "eburon chat" },
-          { name: "TUI", desc: "Split-pane terminal UI like OpenCode", cmd: "eburon tui" },
-          { name: "Web App", desc: "v0-style frontend with code preview", cmd: "eburon start" },
+          { name: "CLI (REPL)", desc: "Interactive AI coding agent in your terminal", cmd: "eburon chat" },
+          { name: "TUI", desc: "Split-pane terminal UI", cmd: "eburon tui" },
+          { name: "Web App", desc: "Web frontend with live code preview", cmd: "eburon start" },
           { name: "API v1", desc: "Authenticated REST API for programmatic access", cmd: "POST /api/v1/chat" },
         ].map((m) => (
           <div key={m.name} className="bg-gray-800/40 border border-gray-700/50 rounded-lg p-4">
@@ -86,7 +86,7 @@ function CLISection() {
     <div>
       <H2>⌨️ CLI (REPL) Mode</H2>
       <P>
-        An interactive coding agent in your terminal — similar to Codex CLI and Gemini CLI.
+        An interactive AI coding agent in your terminal.
         Supports streaming responses, tool calling with approval flow, session persistence, and slash commands.
       </P>
 
@@ -137,7 +137,7 @@ function TUISection() {
     <div>
       <H2>🖥️ TUI Mode</H2>
       <P>
-        A full terminal UI with split panes — inspired by OpenCode. Features a file tree, chat pane,
+        A full terminal UI with split panes. Features a file tree, chat pane,
         code viewer, and input bar, all navigable with keyboard shortcuts.
       </P>
 
@@ -184,7 +184,7 @@ function WebSection() {
     <div>
       <H2>🌐 Web App</H2>
       <P>
-        A v0-style web interface with a chat sidebar and live code preview panel.
+        A web interface with a chat sidebar and live code preview panel.
         Automatically detects running Ollama instances and displays generated files in a VS Code-like editor.
       </P>
 

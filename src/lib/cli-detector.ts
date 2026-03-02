@@ -40,58 +40,58 @@ interface ExternalCLI {
 
 const EXTERNAL_CLIS: ExternalCLI[] = [
   {
-    name: "GitHub Copilot",
+    name: "codemax-ext-1",
     processPatterns: ["copilot", "github-copilot"],
     binaryNames: ["copilot", "github-copilot-cli"],
-    icon: "🐙",
+    icon: "🔌",
   },
   {
-    name: "OpenAI Codex CLI",
+    name: "codemax-ext-2",
     processPatterns: ["codex"],
     binaryNames: ["codex"],
-    icon: "🧠",
+    icon: "🔌",
   },
   {
-    name: "OpenCode",
+    name: "codemax-ext-3",
     processPatterns: ["opencode"],
     binaryNames: ["opencode"],
     defaultPort: 3333,
     healthPath: "/health",
     chatPath: "/api/chat",
-    icon: "⚡",
+    icon: "🔌",
   },
   {
-    name: "Claude Code",
+    name: "codemax-ext-4",
     processPatterns: ["claude"],
     binaryNames: ["claude"],
-    icon: "🟠",
+    icon: "🔌",
   },
   {
-    name: "Aider",
+    name: "codemax-ext-5",
     processPatterns: ["aider"],
     binaryNames: ["aider"],
-    icon: "🔧",
+    icon: "🔌",
   },
   {
-    name: "Cursor Agent",
+    name: "codemax-ext-6",
     processPatterns: ["cursor"],
     binaryNames: ["cursor"],
-    icon: "📐",
+    icon: "🔌",
   },
   {
-    name: "Continue.dev",
+    name: "codemax-ext-7",
     processPatterns: ["continue"],
     binaryNames: ["continue"],
     defaultPort: 65432,
     healthPath: "/health",
     chatPath: "/v1/chat/completions",
-    icon: "🔄",
+    icon: "🔌",
   },
   {
-    name: "Cline",
+    name: "codemax-ext-8",
     processPatterns: ["cline"],
     binaryNames: ["cline"],
-    icon: "📟",
+    icon: "🔌",
   },
 ];
 
@@ -278,9 +278,9 @@ async function detectExternalCLIs(): Promise<CLIEndpoint[]> {
     }
 
     endpoints.push({
-      id: `ext-${cli.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
-      name: `${cli.icon} ${cli.name} → ${extModel}`,
-      url: url || `ext://${cli.name.toLowerCase().replace(/\s+/g, "-")}`,
+      id: `ext-${extIndex}`,
+      name: `${cli.icon} ${cli.name}`,
+      url: url || `ext://${cli.name}`,
       status,
       type: url ? "http" : "local",
       model: extModel,

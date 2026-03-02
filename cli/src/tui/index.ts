@@ -1,6 +1,6 @@
 /**
  * Eburon Copilot CLI — TUI Main Entry
- * Full terminal UI (OpenCode-style) with blessed.
+ * Full terminal UI with blessed (split-pane TUI).
  */
 import { createLayout, type TUILayout } from "./layout.js";
 import { showWelcome, appendMessage, startAssistantMessage, appendStreaming } from "./chat-pane.js";

@@ -5,8 +5,8 @@
  * Created by Master E of Eburon AI, founded by Jo Lernout.
  *
  * Modes:
- *   eburon chat       → Interactive REPL (like Codex CLI / Gemini CLI)
- *   eburon tui        → Full terminal UI (like OpenCode)
+ *   eburon chat       → Interactive REPL (AI coding agent)
+ *   eburon tui        → Full terminal UI (split-pane TUI)
  *   eburon start      → Launch web app + bridge server
  *   eburon [prompt]   → Single-shot generation
  *   eburon            → Default: interactive REPL
@@ -170,8 +170,8 @@ async function handleSingleShot(prompt: string): Promise<void> {
 function printUsage(): void {
   console.log(banner());
   console.log(bold("  Usage:"));
-  console.log(`  ${accent("eburon chat")}           ${muted("Interactive REPL (like Codex CLI / Gemini CLI)")}`);
-  console.log(`  ${accent("eburon tui")}            ${muted("Full terminal UI (like OpenCode)")}`);
+  console.log(`  ${accent("eburon chat")}           ${muted("Interactive REPL (AI coding agent)")}`);
+  console.log(`  ${accent("eburon tui")}            ${muted("Full terminal UI (split-pane TUI)")}`);
   console.log(`  ${accent("eburon start")}          ${muted("Launch web app + bridge server (v0-style frontend)")}`);
   console.log(`  ${accent("eburon [prompt]")}       ${muted("Single-shot generation")}`);
   console.log(`  ${accent("eburon")}                ${muted("Default: interactive REPL")}`);

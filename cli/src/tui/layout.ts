@@ -1,5 +1,5 @@
 /**
- * Eburon Copilot CLI — TUI Layout (OpenCode-style)
+ * Eburon Copilot CLI — TUI Layout (split-pane)
  * Blessed-based terminal UI with split panes.
  */
 import blessed from "blessed";
