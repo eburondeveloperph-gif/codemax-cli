@@ -4,7 +4,7 @@
   </a>
 </p>
 
-<h1 align="center">Eburon AI Autonomous Agent Model 🤖⚙️</h1>
+<h1 align="center">Eburon AI Autonomous Agent Model</h1>
 
 <p align="center">
   <a href="https://eburon.ai/">eburon.ai</a> · Private Model · codemax-v3
