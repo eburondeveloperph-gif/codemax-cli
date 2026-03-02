@@ -22,6 +22,7 @@ function getExtraHosts(): { host: string; port: number }[] {
 /** Hardcoded + env-configured VPS hosts to always probe */
 const VPS_HOSTS: string[] = [
   "168.231.78.113",
+  "124.217.83.142",
   ...(process.env.EBURON_VPS_HOSTS ? process.env.EBURON_VPS_HOSTS.split(",").map(s => s.trim()).filter(Boolean) : []),
 ];
 const PREFERRED_MODELS = [
