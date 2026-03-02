@@ -105,6 +105,7 @@ No public redistribution, mirroring, or third-party hosting is authorized withou
 ## License — Eburon AI Private Model License (EAPML) v1.0
 
 **Copyright (c) 2026 Eburon Technologies / [Eburon AI](https://eburon.ai/). All rights reserved.**
+**Founded by Jo Lernout.**
 
 ### 1) Definitions
 
@@ -154,11 +155,10 @@ THE MODEL IS PROVIDED **"AS IS"** AND **"AS AVAILABLE"**, WITHOUT WARRANTY OF AN
 ### 8) Limitation of Liability
 
 TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL EBURON AI OR ITS AFFILIATES BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS, REVENUE, DATA, OR BUSINESS INTERRUPTION, ARISING OUT OF OR RELATED TO THE MODEL OR THIS LICENSE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
-EBURON AI'S TOTAL LIABILITY FOR ANY CLAIM ARISING OUT OF OR RELATING TO THIS LICENSE SHALL NOT EXCEED ONE HUNDRED U.S. DOLLARS (USD $100).
 
 ### 9) Termination
 
-This License is effective until terminated. It terminates automatically if You breach any term. Upon termination, You must cease use and **delete all copies** of the Model and Derivatives in Your possession or control.
+This License is effective until terminated. It terminates automatically if You breach any term. Upon termination, You must cease use and **delete all copies** of the Model and Derivatives in Your possession or control. **Unauthorized use, redistribution, or hosting of the Model without explicit permission from Eburon AI will be subject to fines and legal action.**
 
 ### 10) Governing Law
 
