@@ -19,7 +19,11 @@ function getExtraHosts(): { host: string; port: number }[] {
   }
 }
 
-/** Preferred model names — first match wins */
+/** Hardcoded + env-configured VPS hosts to always probe */
+const VPS_HOSTS: string[] = [
+  "168.231.78.113",
+  ...(process.env.EBURON_VPS_HOSTS ? process.env.EBURON_VPS_HOSTS.split(",").map(s => s.trim()).filter(Boolean) : []),
+];
 const PREFERRED_MODELS = [
   "eburonmax/codemax-v3",
   "eburonmax/codemax-v3:latest",
@@ -139,7 +143,90 @@ const VERSION_PROBES: Record<number, { path: string; extract: (body: string) => 
 export async function detectCLIEndpoints(): Promise<CLIEndpoint[]> {
   const detected: CLIEndpoint[] = [];
 
-  // Check environment variable overrides first
+  // ── Always include Localhost (Ollama) as primary source ──
+  const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+  const ollamaHost = (() => { try { return new URL(ollamaUrl); } catch { return null; } })();
+  if (ollamaHost) {
+    const base = `${ollamaHost.protocol}//${ollamaHost.host}`;
+    let ollamaStatus: "online" | "offline" = "offline";
+    let ollamaModel: string | undefined;
+    let ollamaVersion: string | undefined;
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 2500);
+      const res = await fetch(`${base}/api/tags`, { signal: ctrl.signal });
+      clearTimeout(t);
+      if (res.ok) {
+        ollamaStatus = "online";
+        const data = await res.json();
+        const models: { name: string }[] = data.models ?? [];
+        const preferred = models.find((m) =>
+          PREFERRED_MODELS.some((p) => m.name === p || m.name.startsWith("eburonmax/codemax-v3") || m.name.startsWith("codemax-v3"))
+        );
+        ollamaModel = (preferred ?? models[0])?.name;
+      }
+    } catch { /* not reachable */ }
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 2000);
+      const res = await fetch(`${base}/api/version`, { signal: ctrl.signal });
+      clearTimeout(t);
+      if (res.ok) { const d = await res.json(); ollamaVersion = d.version; }
+    } catch { /* ignore */ }
+    detected.push({
+      id: "localhost-ollama",
+      name: `Localhost${ollamaModel ? ` — ${ollamaModel.split(":")[0]}` : ""}`,
+      url: `${base}/api/chat`,
+      status: ollamaStatus,
+      type: "http",
+      version: ollamaVersion,
+      model: ollamaModel || "eburonmax/codemax-v3",
+      lastChecked: new Date(),
+    });
+  }
+
+  // ── Always probe VPS hosts as additional sources ──
+  await Promise.all(VPS_HOSTS.map(async (ip) => {
+    const base = `http://${ip}:11434`;
+    if (detected.some((d) => d.url.includes(ip))) return;
+    let vpsStatus: "online" | "offline" = "offline";
+    let vpsModel: string | undefined;
+    let vpsVersion: string | undefined;
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 4000);
+      const res = await fetch(`${base}/api/tags`, { signal: ctrl.signal });
+      clearTimeout(t);
+      if (res.ok) {
+        vpsStatus = "online";
+        const data = await res.json();
+        const models: { name: string }[] = data.models ?? [];
+        const preferred = models.find((m) =>
+          PREFERRED_MODELS.some((p) => m.name === p || m.name.startsWith("eburonmax/codemax-v3") || m.name.startsWith("codemax-v3"))
+        );
+        vpsModel = (preferred ?? models[0])?.name;
+      }
+    } catch { /* not reachable */ }
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 3000);
+      const res = await fetch(`${base}/api/version`, { signal: ctrl.signal });
+      clearTimeout(t);
+      if (res.ok) { const d = await res.json(); vpsVersion = d.version; }
+    } catch { /* ignore */ }
+    detected.push({
+      id: `vps-${ip.replace(/\./g, "-")}`,
+      name: `VPS ${ip}${vpsModel ? ` — ${vpsModel.split(":")[0]}` : ""}`,
+      url: `${base}/api/chat`,
+      status: vpsStatus,
+      type: "http",
+      version: vpsVersion,
+      model: vpsModel || "eburonmax/codemax-v3",
+      lastChecked: new Date(),
+    });
+  }));
+
+  // Check environment variable overrides
   const envEndpoint = process.env.EBURON_CLI_ENDPOINT;
   if (envEndpoint) {
     detected.push({
@@ -151,9 +238,10 @@ export async function detectCLIEndpoints(): Promise<CLIEndpoint[]> {
     });
   }
 
-  // Probe all localhost ports in parallel
+  // Probe all localhost ports in parallel (skip 11434 — already handled above)
+  const portsToProbe = DEFAULT_PORTS.filter((p) => p !== 11434);
   const results = await Promise.all(
-    DEFAULT_PORTS.map(async (port) => {
+    portsToProbe.map(async (port) => {
       const { version, model } = await probeVersion(port);
       if (model !== undefined) {
         const chatPath = port === 1234 ? "/v1/chat/completions" : "/api/chat";
@@ -189,12 +277,12 @@ export async function detectCLIEndpoints(): Promise<CLIEndpoint[]> {
   const filtered = results.filter((r) => r !== null) as CLIEndpoint[];
   detected.push(...filtered);
 
-  // ── Probe remote OLLAMA_URL hosts (if configured, not localhost) ──
+  // ── Probe remote OLLAMA_URL hosts (if configured, different from primary) ──
   const extraHosts = getExtraHosts();
   for (const { host, port } of extraHosts) {
     const baseUrl = `http://${host}:${port}`;
-    // Check if already detected (unlikely for remote, but guard)
-    if (detected.some((d) => d.url.includes(host))) continue;
+    // Skip if already covered by the localhost-ollama entry
+    if (detected.some((d) => d.url.includes(host) || d.url.includes(baseUrl))) continue;
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 3000);
