@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import JSZip from "jszip";
 import { GeneratedFile } from "@/lib/parse-generated-files";
+import CodeGenerationStatus from "./CodeGenerationStatus";
 
 type Tab = "code" | "preview";
 type Device = "mobile" | "tablet" | "desktop" | "web";
@@ -227,8 +228,11 @@ export default function CodePanel({ files, streamingContent, isStreaming, active
     { key: "web",     icon: <Globe size={12} />,      label: "Full" },
   ];
 
+  // Detect generation stage
+  const genStage = isStreaming ? (hasFiles || liveCode ? "generating" : "thinking") : (hasFiles ? "done" : undefined);
+
   return (
-    <div className="flex flex-col h-full bg-[#0d1117]">
+    <div className="flex flex-col h-full bg-[#0d1117] relative">
       {/* ── Top bar ── */}
       <div className="flex items-center gap-3 px-4 h-12 border-b border-white/[0.06] shrink-0 bg-[#0a0a0a]">
         <div className="flex items-center gap-0.5 bg-white/[0.04] rounded-lg p-0.5">
@@ -253,7 +257,7 @@ export default function CodePanel({ files, streamingContent, isStreaming, active
         <div className="flex-1" />
         {hasFiles && <div className="flex items-center gap-1 text-[11px] text-gray-600"><Package size={11} /><span>{files.length} files</span></div>}
         <button onClick={downloadZip} disabled={!hasFiles || downloading}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-eburon-700 hover:bg-eburon-600 disabled:opacity-30 text-white text-xs font-medium transition-all">
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-30 text-white text-xs font-medium transition-all">
           <Download size={12} />{downloading ? "Packaging…" : "Download ZIP"}
         </button>
       </div>
@@ -287,6 +291,16 @@ export default function CodePanel({ files, streamingContent, isStreaming, active
                 ? <Msg icon={<Eye size={24} />} title="Preview unavailable" sub="No HTML/React entry found. Download ZIP to run locally." />
                 : <EmptyCode />}
         </>
+      )}
+
+      {/* ── Generation status (continuous background indicator) ── */}
+      {(isStreaming || genStage === "done") && (
+        <CodeGenerationStatus
+          isActive={isStreaming}
+          stage={genStage as "thinking" | "generating" | "done"}
+          filesGenerated={files.length}
+          currentFile={isStreaming ? (livePath || undefined) : undefined}
+        />
       )}
     </div>
   );

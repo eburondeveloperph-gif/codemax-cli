@@ -6,6 +6,7 @@ import {
   Wifi, Radio, Loader2, CheckCircle, XCircle, ChevronDown,
 } from "lucide-react";
 import { Conversation, CLIEndpoint, Message } from "@/types";
+import { ChatGeneratingIndicator } from "./CodeGenerationStatus";
 
 const JOKES = [
   "Warming up the hamster wheels…",
@@ -196,6 +197,9 @@ export default function ChatSidebar({
         {messages.map(msg => (
           <MessageRow key={msg.id} msg={msg} jokeText={JOKES[jokeIdx]} />
         ))}
+        {isStreaming && (
+          <ChatGeneratingIndicator stage={messages.some(m => m.isStreaming && m.content.length > 20) ? "generating" : "thinking"} />
+        )}
         <div ref={bottomRef} />
       </div>
 
