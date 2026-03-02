@@ -235,6 +235,46 @@ export async function detectCLIEndpoints(): Promise<CLIEndpoint[]> {
     });
   }
 
+  // ── Tunnel URL (Cloudflare / ngrok) — probe directly ──
+  const tunnelUrl = process.env.EBURON_TUNNEL_URL;
+  if (tunnelUrl) {
+    const tunnelBase = tunnelUrl.replace(/\/+$/, "");
+    const tagsRes = await fetchWithTimeout(`${tunnelBase}/api/tags`, { timeoutMs: 5000 });
+    if (tagsRes?.ok) {
+      try {
+        const data = await tagsRes.json();
+        const models: { name: string }[] = data.models ?? [];
+        const preferred = models.find((m: { name: string }) =>
+          PREFERRED_MODELS.some((p) => m.name === p || m.name.startsWith("eburonmax/codemax-v3") || m.name.startsWith("codemax-v3"))
+        );
+        const model = (preferred ?? models[0])?.name;
+        let version: string | undefined;
+        const verRes = await fetchWithTimeout(`${tunnelBase}/api/version`, { timeoutMs: 3000 });
+        if (verRes?.ok) { const d = await verRes.json(); version = d.version; }
+        detected.push({
+          id: "tunnel-ollama",
+          name: `Tunnel · Ollama${model ? ` — ${model.split(":")[0]}` : ""}`,
+          url: `${tunnelBase}/api/chat`,
+          status: "online",
+          type: "http",
+          version,
+          model,
+          lastChecked: now,
+        });
+      } catch { /* parse error */ }
+    } else {
+      detected.push({
+        id: "tunnel-ollama-offline",
+        name: "Tunnel · Ollama",
+        url: `${tunnelBase}/api/chat`,
+        status: "offline",
+        type: "http",
+        model: "eburonmax/codemax-v3",
+        lastChecked: now,
+      });
+    }
+  }
+
   // ── 2. Scan all hosts in parallel ──
   const scanResults = await Promise.all(hostsToScan.map(async ({ label, host, isLocal }) => {
     const services = await scanHost(host);
