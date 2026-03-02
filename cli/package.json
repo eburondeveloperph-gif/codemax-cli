@@ -1,0 +1,28 @@
+{
+  "name": "@eburon/codemax-cli",
+  "version": "1.0.0",
+  "description": "Eburon Codemax CLI — autonomous coding agent powered by codemax-v3 via opencode",
+  "type": "module",
+  "bin": {
+    "eburon-codemax": "./dist/cli.js",
+    "eburon-codemax-serve": "./dist/server.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/cli.js",
+    "serve": "node dist/server.js",
+    "dev:cli": "npx ts-node --esm src/cli.ts",
+    "dev:server": "npx ts-node --esm src/server.ts",
+    "postinstall": "npm run build && node scripts/postinstall.js"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

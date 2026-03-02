@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+cli/node_modules/
+
+# Build outputs
+.next/
+cli/dist/
+*.tsbuildinfo
+
+# Env & secrets
+.env
+.env.local
+.env.*.local
+
+# OS / Editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
