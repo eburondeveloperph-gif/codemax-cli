@@ -11,6 +11,73 @@ function generateId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+// ─── DB helpers (fire-and-forget, non-blocking) ────────────────────
+async function dbCreateSession(id: string, title: string, model?: string) {
+  try {
+    await fetch("/api/db/sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, title, source: "web", model }),
+    });
+  } catch { /* non-critical */ }
+}
+
+async function dbUpdateSession(id: string, title: string) {
+  try {
+    await fetch("/api/db/sessions", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, title }),
+    });
+  } catch { /* non-critical */ }
+}
+
+async function dbDeleteSession(id: string) {
+  try {
+    await fetch(`/api/db/sessions?id=${id}`, { method: "DELETE" });
+  } catch { /* non-critical */ }
+}
+
+async function dbSaveMessage(sessionId: string, msg: { id: string; role: string; content: string }) {
+  try {
+    await fetch("/api/db/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: sessionId, role: msg.role, content: msg.content }),
+    });
+  } catch { /* non-critical */ }
+}
+
+async function dbSaveFiles(sessionId: string, files: GeneratedFile[]) {
+  if (files.length === 0) return;
+  try {
+    await fetch("/api/db/files", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: sessionId,
+        files: files.map((f) => ({ path: f.path, content: f.content, language: f.language })),
+      }),
+    });
+  } catch { /* non-critical */ }
+}
+
+async function dbLoadSessions(): Promise<Conversation[]> {
+  try {
+    const res = await fetch("/api/db/sessions?source=web&limit=30");
+    const data = await res.json();
+    return (data.sessions ?? []).map((s: Record<string, unknown>) => ({
+      id: s.id as string,
+      title: s.title as string,
+      messages: [],
+      createdAt: new Date(s.created_at as string),
+      updatedAt: new Date(s.updated_at as string),
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export default function Home() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | undefined>();
@@ -26,7 +93,18 @@ export default function Home() {
   const activeConv = conversations.find((c) => c.id === activeConvId);
   const activeEndpoint = endpoints.find((e) => e.id === activeEndpointId);
 
-  useEffect(() => { detectEndpoints(); }, []);
+  useEffect(() => { detectEndpoints(); loadPersistedSessions(); }, []);
+
+  const loadPersistedSessions = useCallback(async () => {
+    const saved = await dbLoadSessions();
+    if (saved.length > 0) {
+      setConversations((prev) => {
+        const existingIds = new Set(prev.map((c) => c.id));
+        const newOnes = saved.filter((s) => !existingIds.has(s.id));
+        return [...prev, ...newOnes];
+      });
+    }
+  }, []);
 
   const detectEndpoints = useCallback(async () => {
     setIsDetecting(true);
@@ -51,12 +129,14 @@ export default function Home() {
     const conv: Conversation = { id, title: "New Chat", messages: [], createdAt: new Date(), updatedAt: new Date() };
     setConversations((prev) => [conv, ...prev]);
     setActiveConvId(id);
+    dbCreateSession(id, "New Chat", activeEndpoint?.model);
     return id;
-  }, []);
+  }, [activeEndpoint]);
 
   const deleteConversation = useCallback((id: string) => {
     setConversations((prev) => prev.filter((c) => c.id !== id));
     if (activeConvId === id) setActiveConvId(undefined);
+    dbDeleteSession(id);
   }, [activeConvId]);
 
   const updateConversation = useCallback((id: string, updater: (c: Conversation) => Conversation) => {
@@ -73,12 +153,20 @@ export default function Home() {
     const aId = generateId();
     const assistantMsg: Message = { id: aId, role: "assistant", content: "", timestamp: new Date(), isStreaming: true };
 
+    // Update title on first message
+    const isFirst = (conversations.find((c) => c.id === convId)?.messages ?? []).length === 0;
+    const newTitle = isFirst ? text.slice(0, 45) : undefined;
+
     updateConversation(convId, (c) => ({
       ...c,
-      title: c.messages.length === 0 ? text.slice(0, 45) : c.title,
+      title: isFirst ? text.slice(0, 45) : c.title,
       messages: [...c.messages, userMsg, assistantMsg],
       updatedAt: new Date(),
     }));
+
+    // Persist user message to DB
+    dbSaveMessage(convId, userMsg);
+    if (newTitle) dbUpdateSession(convId, newTitle);
 
     setIsStreaming(true);
     setStreamingContent("");
@@ -139,7 +227,26 @@ export default function Home() {
 
         // Parse files once streaming completes
         const parsed = parseGeneratedFiles(full);
-        if (parsed.length >= 2) setDisplayedFiles(parsed);
+        let finalFiles: GeneratedFile[] = [];
+        if (parsed.length >= 1) {
+          finalFiles = parsed;
+          setDisplayedFiles(parsed);
+        } else if (full.includes("```")) {
+          // Fallback: extract code blocks even without file paths
+          const codeBlocks = [...full.matchAll(/```(\w*)\n([\s\S]*?)```/g)];
+          if (codeBlocks.length > 0) {
+            finalFiles = codeBlocks.map((m, i) => ({
+              path: `generated-${i + 1}.${m[1] || "txt"}`,
+              content: m[2].trimEnd(),
+              language: m[1] || "text",
+            }));
+            setDisplayedFiles(finalFiles);
+          }
+        }
+
+        // Persist assistant message and generated files to DB
+        dbSaveMessage(convId!, { id: aId, role: "assistant", content: full });
+        if (finalFiles.length > 0) dbSaveFiles(convId!, finalFiles);
       }
     } catch (err: unknown) {
       if (err instanceof Error && err.name !== "AbortError") {
@@ -173,7 +280,7 @@ export default function Home() {
     const lastAssistant = [...activeConv.messages].reverse().find((m) => m.role === "assistant" && !m.isStreaming);
     if (lastAssistant) {
       const parsed = parseGeneratedFiles(lastAssistant.content);
-      if (parsed.length >= 2) setDisplayedFiles(parsed);
+      if (parsed.length >= 1) setDisplayedFiles(parsed);
       else if (!isStreaming) setDisplayedFiles([]);
     } else if (!isStreaming) {
       setDisplayedFiles([]);

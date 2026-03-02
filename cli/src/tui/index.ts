@@ -8,7 +8,7 @@ import { showFile, showCode, showDiff } from "./code-pane.js";
 import { loadFileTree, populateFileTree, type FileEntry } from "./file-tree-pane.js";
 import { streamChat, checkOllama, type ChatMessage, type ToolCall } from "../core/agent.js";
 import { executeTool } from "../core/tools.js";
-import { createSession, saveSession, type Session } from "../core/session.js";
+import { createSession, saveSession, syncSessionToDB, syncMessageToDB, syncToolToDB, closeDB, type Session } from "../core/session.js";
 import { CONFIG } from "../core/config.js";
 
 export async function startTUI(): Promise<void> {
@@ -22,6 +22,9 @@ export async function startTUI(): Promise<void> {
   let isProcessing = false;
   const panes = [inputBar, chatBox, fileTree, codeBox];
   let focusIndex = 0;
+
+  // Sync session to DB
+  syncSessionToDB(session, "tui").catch(() => {});
 
   // Load file tree
   try {
@@ -80,6 +83,7 @@ export async function startTUI(): Promise<void> {
 
     history.push({ role: "user", content: text });
     appendMessage(chatBox, { role: "user", content: text });
+    syncMessageToDB(session, { role: "user", content: text }).catch(() => {});
     screen.render();
 
     try {
@@ -121,7 +125,9 @@ export async function startTUI(): Promise<void> {
           appendStreaming(chatBox, `\n{yellow-fg}🔧 ${tc.function.name}{/yellow-fg}`);
           screen.render();
 
+          const t0 = Date.now();
           const result = executeTool(tc.function.name, args);
+          syncToolToDB(session, tc.function.name, args, result.output, result.success, Date.now() - t0).catch(() => {});
           history.push({ role: "tool", content: result.output, name: tc.function.name });
 
           // Show results in code pane
@@ -145,9 +151,13 @@ export async function startTUI(): Promise<void> {
             screen.render();
           }
         }
-        if (contResponse) history.push({ role: "assistant", content: contResponse });
+        if (contResponse) {
+          history.push({ role: "assistant", content: contResponse });
+          syncMessageToDB(session, { role: "assistant", content: contResponse }).catch(() => {});
+        }
       } else if (fullResponse) {
         history.push({ role: "assistant", content: fullResponse });
+        syncMessageToDB(session, { role: "assistant", content: fullResponse }).catch(() => {});
       }
 
       // Extract code from response for code pane
@@ -181,14 +191,14 @@ export async function startTUI(): Promise<void> {
   screen.key(["C-q"], () => {
     session.messages = history;
     saveSession(session);
-    process.exit(0);
+    closeDB().finally(() => process.exit(0));
   });
   screen.key(["q"], () => {
     // Only quit if not focused on input
     if (screen.focused !== inputBar) {
       session.messages = history;
       saveSession(session);
-      process.exit(0);
+      closeDB().finally(() => process.exit(0));
     }
   });
 

@@ -100,7 +100,7 @@ export function parseGeneratedFiles(text: string): GeneratedFile[] {
   return files;
 }
 
-/** True when the AI response looks like a generated app (2+ distinct source files) */
+/** True when the AI response looks like a generated app (1+ distinct source files) */
 export function isAppGenerationResponse(text: string): boolean {
-  return parseGeneratedFiles(text).length >= 2;
+  return parseGeneratedFiles(text).length >= 1;
 }

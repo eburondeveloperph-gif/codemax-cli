@@ -6,7 +6,7 @@ import { createInterface } from "readline";
 import { CONFIG } from "../core/config.js";
 import { streamChat, checkOllama, type ChatMessage, type ToolCall } from "../core/agent.js";
 import { executeTool } from "../core/tools.js";
-import { createSession, saveSession, type Session } from "../core/session.js";
+import { createSession, saveSession, syncSessionToDB, syncMessageToDB, syncToolToDB, closeDB, type Session } from "../core/session.js";
 import { detectContext, contextSummary } from "../core/context.js";
 import { T, brand, accent, muted, bold, green, yellow, red, dim, BOX, banner } from "../core/theme.js";
 import { renderMarkdown, Spinner } from "./renderer.js";
@@ -68,6 +68,9 @@ export async function startRepl(): Promise<void> {
   const history: ChatMessage[] = [];
   let turnCount = 0;
 
+  // Sync session to DB (non-blocking)
+  syncSessionToDB(session, "cli").catch(() => {});
+
   // Tips
   console.log(dim("  Type a prompt to start, or ") + accent("/help") + dim(" for commands. ") + dim("Ctrl+C to exit.\n"));
 
@@ -96,7 +99,7 @@ export async function startRepl(): Promise<void> {
       session.messages = history;
       saveSession(session);
     }
-    process.exit(0);
+    closeDB().finally(() => process.exit(0));
   });
 
   // REPL loop
@@ -128,12 +131,16 @@ export async function startRepl(): Promise<void> {
     cmdCtx.turnCount = turnCount;
     history.push({ role: "user", content: input });
 
+    // Sync user message to DB
+    syncMessageToDB(session, { role: "user", content: input }).catch(() => {});
+
     // Update session title from first message
     if (turnCount === 1) {
       session.title = input.slice(0, 60);
+      syncSessionToDB(session, "cli").catch(() => {});
     }
 
-    await processPrompt(history, rl, spinner);
+    await processPrompt(history, rl, spinner, session);
 
     // Auto-save
     session.messages = history;
@@ -144,7 +151,8 @@ export async function startRepl(): Promise<void> {
 async function processPrompt(
   history: ChatMessage[],
   rl: ReturnType<typeof createInterface>,
-  spinner: Spinner
+  spinner: Spinner,
+  session: Session,
 ): Promise<void> {
   spinner.start("Thinking...");
 
@@ -239,8 +247,13 @@ async function processPrompt(
           args = { raw: tc.function.arguments };
         }
 
+        const t0 = Date.now();
         const result = executeTool(tc.function.name, args);
+        const elapsed = Date.now() - t0;
         console.log(renderToolResult(tc.function.name, result));
+
+        // Log tool execution to DB
+        syncToolToDB(session, tc.function.name, args, result.output, result.success, elapsed).catch(() => {});
 
         // Add tool result to history
         history.push({
@@ -253,13 +266,14 @@ async function processPrompt(
       console.log(`  ${T.brand}└${BOX.h.repeat(55)}${T.reset}\n`);
 
       // Continue conversation with tool results
-      await processPrompt(history, rl, spinner);
+      await processPrompt(history, rl, spinner, session);
       return;
     }
 
     // Add assistant response to history
     if (fullResponse) {
       history.push({ role: "assistant", content: fullResponse });
+      syncMessageToDB(session, { role: "assistant", content: fullResponse }).catch(() => {});
     }
   } catch (err) {
     spinner.stop();

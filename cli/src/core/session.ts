@@ -1,10 +1,12 @@
 /**
  * Eburon Copilot CLI — Session Persistence
+ * Saves to both JSON files (offline fallback) and PostgreSQL.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from "fs";
 import { resolve } from "path";
 import { CONFIG } from "./config.js";
 import type { ChatMessage } from "./agent.js";
+import * as db from "./db.js";
 
 export interface Session {
   id: string;
@@ -13,6 +15,7 @@ export interface Session {
   createdAt: string;
   updatedAt: string;
   cwd: string;
+  dbSessionId?: string; // PostgreSQL session ID (set after first sync)
 }
 
 function ensureDir(): void {
@@ -81,4 +84,63 @@ export function deleteSession(id: string): boolean {
   } catch {
     return false;
   }
+}
+
+// ─── PostgreSQL sync (best-effort, non-blocking) ───────────────────
+export async function syncSessionToDB(session: Session, source: "cli" | "tui" = "cli"): Promise<string | null> {
+  try {
+    if (!await db.isDBAvailable()) return null;
+    if (session.dbSessionId) {
+      await db.updateSessionTitle(session.dbSessionId, session.title);
+      return session.dbSessionId;
+    }
+    const dbId = await db.createSession({
+      title: session.title,
+      source,
+      cwd: session.cwd,
+    });
+    session.dbSessionId = dbId;
+    return dbId;
+  } catch {
+    return null;
+  }
+}
+
+export async function syncMessageToDB(session: Session, msg: ChatMessage): Promise<void> {
+  try {
+    const sid = session.dbSessionId;
+    if (!sid) return;
+    await db.addMessage({
+      session_id: sid,
+      role: msg.role as "system" | "user" | "assistant" | "tool",
+      content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
+    });
+  } catch { /* non-critical */ }
+}
+
+export async function syncToolToDB(session: Session, toolName: string, args: Record<string, unknown>, result: string, success: boolean, durationMs?: number): Promise<void> {
+  try {
+    const sid = session.dbSessionId;
+    if (!sid) return;
+    await db.logToolExecution({
+      session_id: sid,
+      tool_name: toolName,
+      arguments: args,
+      result,
+      success,
+      duration_ms: durationMs,
+    });
+  } catch { /* non-critical */ }
+}
+
+export async function syncFileToDB(session: Session, path: string, content: string, language?: string): Promise<void> {
+  try {
+    const sid = session.dbSessionId;
+    if (!sid) return;
+    await db.saveGeneratedFile({ session_id: sid, path, content, language });
+  } catch { /* non-critical */ }
+}
+
+export async function closeDB(): Promise<void> {
+  try { await db.closePool(); } catch { /* ignore */ }
 }
