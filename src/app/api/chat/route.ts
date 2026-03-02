@@ -134,11 +134,15 @@ export async function POST(req: NextRequest) {
   if (model) bodyObj.model = model;
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
     const upstream = await fetch(targetUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(bodyObj),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
 
     if (!upstream.ok) {
       const text = await upstream.text();
@@ -162,6 +166,32 @@ export async function POST(req: NextRequest) {
     const json = await upstream.json();
     return NextResponse.json(json);
   } catch (err) {
+    // If the target wasn't localhost, retry via localhost as fallback
+    const localhostChat = `${(process.env.OLLAMA_URL ?? "http://localhost:11434").replace(/\/+$/, "")}/api/chat`;
+    if (targetUrl !== localhostChat) {
+      try {
+        const ctrl2 = new AbortController();
+        const t2 = setTimeout(() => ctrl2.abort(), 30000);
+        const fallback = await fetch(localhostChat, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(bodyObj),
+          signal: ctrl2.signal,
+        });
+        clearTimeout(t2);
+        if (fallback.ok && stream && fallback.body) {
+          return new NextResponse(fallback.body, {
+            headers: {
+              "Content-Type": "text/event-stream",
+              "Cache-Control": "no-cache",
+              Connection: "keep-alive",
+              "X-Accel-Buffering": "no",
+            },
+          });
+        }
+        if (fallback.ok) return NextResponse.json(await fallback.json());
+      } catch { /* fallback also failed */ }
+    }
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
       { error: message, hint: `Check if Ollama is reachable at ${targetUrl}` },
