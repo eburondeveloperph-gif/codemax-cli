@@ -166,7 +166,7 @@ This License shall be governed by the laws applicable in Belgium, without regard
 
 ### 11) Contact / Permissions
 
-For enterprise licensing, redistribution permissions, or collaborator access requests, contact: **[eburondeveloperph@gmail.com](mailto:eburondeveloperph@gmail.com)**
+For enterprise licensing, redistribution permissions, or collaborator access requests, contact: **[jolernout@eburon.ai](mailto:eburondeveloperph@gmail.com)**
 
 ---
 
