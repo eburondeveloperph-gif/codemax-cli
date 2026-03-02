@@ -16,7 +16,6 @@ interface Props {
   files: GeneratedFile[];
   streamingContent: string;
   isStreaming: boolean;
-  activeAgent?: string;
 }
 
 // ── Syntax highlighter ────────────────────────────────────────────
@@ -239,7 +238,7 @@ function CodeEditor({ content, isStreaming }: { content: string; isStreaming: bo
 }
 
 // ── Main ──────────────────────────────────────────────────────────
-export default function CodePanel({ files, streamingContent, isStreaming, activeAgent }: Props) {
+export default function CodePanel({ files, streamingContent, isStreaming }: Props) {
   const [tab, setTab] = useState<Tab>("code");
   const [device, setDevice] = useState<Device>("web");
   const [activeFile, setActiveFile] = useState<string>("");
@@ -247,8 +246,15 @@ export default function CodePanel({ files, streamingContent, isStreaming, active
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const prevUrlRef = useRef<string | null>(null);
 
+  // Auto-switch to latest file when new files appear during streaming
+  const prevFileCountRef = useRef(0);
   useEffect(() => {
-    if (files.length > 0 && !files.find((f) => f.path === activeFile)) setActiveFile(files[0].path);
+    if (files.length > 0) {
+      if (files.length > prevFileCountRef.current || !files.find((f) => f.path === activeFile)) {
+        setActiveFile(files[files.length - 1].path);
+      }
+      prevFileCountRef.current = files.length;
+    }
   }, [files]);
 
   useEffect(() => {
@@ -258,10 +264,15 @@ export default function CodePanel({ files, streamingContent, isStreaming, active
     setPreviewUrl(url);
   }, [files]);
 
-  const { code: liveCode, language: liveLang, path: livePath } = useMemo(() => extractLiveCode(streamingContent), [streamingContent]);
+  const { code: liveCode, path: livePath } = useMemo(() => extractLiveCode(streamingContent), [streamingContent]);
   const displayFile = files.find((f) => f.path === activeFile);
-  const editorCode = isStreaming ? (liveCode || streamingContent) : (displayFile?.content ?? "");
-  const editorPath = isStreaming ? (livePath || `[${activeAgent ?? "eburonmax/codemax-v3"}] streaming…`) : (displayFile?.path ?? "");
+  // During streaming: show live code if actively streaming a code block, otherwise show the latest completed file
+  const editorCode = isStreaming
+    ? (liveCode || displayFile?.content || streamingContent)
+    : (displayFile?.content ?? "");
+  const editorPath = isStreaming
+    ? (liveCode ? (livePath || "streaming…") : (displayFile?.path || `[eburonmax/codemax-v3] streaming…`))
+    : (displayFile?.path ?? "");
   const hasFiles = files.length > 0;
 
   async function downloadZip() {

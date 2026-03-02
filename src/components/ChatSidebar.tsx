@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, KeyboardEvent } from "react";
+import { useEffect, useRef, useState, useCallback, KeyboardEvent, ChangeEvent } from "react";
 import {
   Plus, MessageSquare, Trash2, Cpu, Send, Square,
   Wifi, Radio, Loader2, CheckCircle, XCircle, ChevronDown,
+  Paperclip, Mic, MicOff, FileCode,
 } from "lucide-react";
 import { Conversation, CLIEndpoint, Message } from "@/types";
 import { ChatGeneratingIndicator } from "./CodeGenerationStatus";
@@ -26,7 +27,20 @@ const JOKES = [
 /** Strip code blocks for sidebar display — they go to the code panel */
 function stripCode(content: string): string {
   const stripped = content.replace(/```[\s\S]*?```/g, "").replace(/`[^`]+`/g, (m) => m).trim();
-  return stripped.length > 0 ? stripped : "⬛ Code generated →";
+  return stripped.length > 0 ? stripped : "";
+}
+
+/** Extract file paths from content for display as chips */
+function extractFilePaths(content: string): string[] {
+  const paths: string[] = [];
+  const seen = new Set<string>();
+  for (const m of content.matchAll(/```\w*\s+([\w][\w\-./]*\.\w+)/g)) {
+    if (!seen.has(m[1])) { seen.add(m[1]); paths.push(m[1]); }
+  }
+  for (const m of content.matchAll(/(?:\*\*`?|#{1,4}\s+|`)([\w][\w\-./]*\.(?:tsx?|jsx?|css|html|json|md|py|go|rs|ya?ml|sh|toml))`?\*?\*?/g)) {
+    if (!seen.has(m[1])) { seen.add(m[1]); paths.push(m[1]); }
+  }
+  return paths;
 }
 
 interface Props {
@@ -37,6 +51,8 @@ interface Props {
   activeEndpoint?: CLIEndpoint;
   isDetecting: boolean;
   isStreaming: boolean;
+  streamingPaths: string[];
+  generatedFileCount: number;
   onNew: () => void;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
@@ -49,16 +65,20 @@ interface Props {
 export default function ChatSidebar({
   conversations, activeConvId, activeConv,
   endpoints, activeEndpoint,
-  isDetecting, isStreaming,
+  isDetecting, isStreaming, streamingPaths, generatedFileCount,
   onNew, onSelect, onDelete,
   onSend, onStop, onDetect, onSelectEndpoint,
 }: Props) {
   const [input, setInput] = useState("");
   const [endpointOpen, setEndpointOpen] = useState(false);
   const [jokeIdx, setJokeIdx] = useState(0);
+  const [isRecording, setIsRecording] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<{ name: string; content: string }[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const jokeTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recognitionRef = useRef<{ stop: () => void } | null>(null);
 
   // Joke cycling when streaming
   const startJokes = () => {
@@ -70,10 +90,60 @@ export default function ChatSidebar({
   };
   if (isStreaming) startJokes(); else stopJokes();
 
+  // ── Voice input via Web Speech API ──
+  const toggleRecording = useCallback(() => {
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      setIsRecording(false);
+      return;
+    }
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRec) { alert("Speech recognition not supported in this browser."); return; }
+    const rec = new SpeechRec() as any;
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = "en-US";
+    rec.onresult = (e: any) => {
+      let transcript = "";
+      for (let i = 0; i < e.results.length; i++) transcript += e.results[i][0].transcript;
+      setInput(transcript);
+    };
+    rec.onerror = () => setIsRecording(false);
+    rec.onend = () => setIsRecording(false);
+    rec.start();
+    recognitionRef.current = rec;
+    setIsRecording(true);
+    /* eslint-enable @typescript-eslint/no-explicit-any */
+  }, [isRecording]);
+
+  // ── File upload handler ──
+  const handleFileUpload = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const content = reader.result as string;
+        setAttachedFiles(prev => [...prev, { name: file.name, content }]);
+      };
+      reader.readAsText(file);
+    });
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, []);
+
   function handleSend() {
-    const t = input.trim();
-    if (!t || isStreaming || !activeEndpoint) return;
-    onSend(t);
+    if (isRecording) { recognitionRef.current?.stop(); setIsRecording(false); }
+    let text = input.trim();
+    if (!text && attachedFiles.length === 0) return;
+    if (isStreaming || !activeEndpoint) return;
+    // Prepend attached files as context
+    if (attachedFiles.length > 0) {
+      const fileContext = attachedFiles.map(f => `[Attached file: ${f.name}]\n\`\`\`\n${f.content}\n\`\`\``).join("\n\n");
+      text = fileContext + (text ? `\n\n${text}` : "\n\nPlease analyze these files.");
+      setAttachedFiles([]);
+    }
+    onSend(text);
     setInput("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
   }
@@ -87,7 +157,7 @@ export default function ChatSidebar({
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, isStreaming]);
+  }, [messages.length, isStreaming, streamingPaths.length]);
 
   return (
     <div className="flex flex-col h-full bg-[#0a0a0a] border-r border-white/[0.06]">
@@ -206,19 +276,72 @@ export default function ChatSidebar({
           </div>
         )}
         {messages.map(msg => (
-          <MessageRow key={msg.id} msg={msg} jokeText={JOKES[jokeIdx]} />
+          <MessageRow key={msg.id} msg={msg} jokeText={JOKES[jokeIdx]} isStreaming={isStreaming} streamingPaths={msg.isStreaming ? streamingPaths : []} />
         ))}
         {isStreaming && (
           <ChatGeneratingIndicator stage={messages.some(m => m.isStreaming && m.content.length > 20) ? "generating" : "thinking"} />
         )}
+        {/* Show streaming file generation list */}
+        {isStreaming && streamingPaths.length > 0 && (
+          <div className="space-y-1 px-1">
+            <p className="text-[10px] text-gray-600 uppercase tracking-wider font-semibold">Generating files</p>
+            <div className="flex flex-wrap gap-1">
+              {streamingPaths.map((p, i) => (
+                <span key={p} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-cyan-500/10 border border-cyan-500/20 text-[10px] text-cyan-300 font-mono">
+                  <FileCode size={9} className="shrink-0" />
+                  {p.split("/").pop()}
+                  {i === streamingPaths.length - 1 && <Loader2 size={8} className="animate-spin ml-0.5" />}
+                </span>
+              ))}
+            </div>
+            {generatedFileCount > 0 && (
+              <p className="text-[10px] text-gray-600">{generatedFileCount} file{generatedFileCount !== 1 ? "s" : ""} complete</p>
+            )}
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
 
+      {/* ── Attached files preview ── */}
+      {attachedFiles.length > 0 && (
+        <div className="px-3 py-1.5 border-t border-white/[0.04] flex flex-wrap gap-1">
+          {attachedFiles.map((f, i) => (
+            <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.06] text-[10px] text-gray-400">
+              <Paperclip size={9} />{f.name}
+              <button onClick={() => setAttachedFiles(prev => prev.filter((_, j) => j !== i))} className="text-gray-600 hover:text-red-400 ml-0.5">×</button>
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* ── Input ── */}
       <div className="px-3 pb-4 pt-2 border-t border-white/[0.06]">
-        <div className={`flex items-end gap-2 bg-white/[0.04] border rounded-xl px-3 py-2.5 transition-all ${
+        <div className={`flex items-end gap-1.5 bg-white/[0.04] border rounded-xl px-3 py-2.5 transition-all ${
           activeEndpoint ? "border-white/[0.08] focus-within:border-eburon-500/50" : "border-white/[0.04] opacity-50"
         }`}>
+          {/* Upload button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!activeEndpoint || isStreaming}
+            className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-300 hover:bg-white/[0.06] transition-colors disabled:opacity-30"
+            title="Attach file"
+          >
+            <Paperclip size={13} />
+          </button>
+          <input ref={fileInputRef} type="file" multiple accept=".ts,.tsx,.js,.jsx,.css,.html,.json,.md,.py,.go,.rs,.yaml,.yml,.sh,.toml,.txt,.env,.sql,.xml,.svg" onChange={handleFileUpload} className="hidden" />
+
+          {/* Mic button */}
+          <button
+            onClick={toggleRecording}
+            disabled={!activeEndpoint}
+            className={`shrink-0 w-7 h-7 flex items-center justify-center rounded-lg transition-colors disabled:opacity-30 ${
+              isRecording ? "bg-red-600/20 text-red-400 animate-pulse" : "text-gray-500 hover:text-gray-300 hover:bg-white/[0.06]"
+            }`}
+            title={isRecording ? "Stop recording" : "Voice input"}
+          >
+            {isRecording ? <MicOff size={13} /> : <Mic size={13} />}
+          </button>
+
           <textarea
             ref={textareaRef}
             value={input}
@@ -230,7 +353,7 @@ export default function ChatSidebar({
             }}
             rows={1}
             disabled={!activeEndpoint || isStreaming}
-            placeholder={isDetecting ? "Scanning endpoints…" : activeEndpoint ? "Describe what to build…" : "Connect a CLI first"}
+            placeholder={isRecording ? "🎤 Listening…" : isDetecting ? "Scanning endpoints…" : activeEndpoint ? "Describe what to build…" : "Connect a CLI first"}
             className="flex-1 bg-transparent text-[12px] text-gray-200 placeholder-gray-600 resize-none outline-none leading-relaxed max-h-40"
           />
           {isStreaming ? (
@@ -238,7 +361,7 @@ export default function ChatSidebar({
               <Square size={11} className="text-white fill-white" />
             </button>
           ) : (
-            <button onClick={handleSend} disabled={!input.trim() || !activeEndpoint}
+            <button onClick={handleSend} disabled={(!input.trim() && attachedFiles.length === 0) || !activeEndpoint}
               className="shrink-0 w-7 h-7 rounded-lg bg-eburon-600 hover:bg-eburon-500 disabled:opacity-30 flex items-center justify-center transition-all">
               <Send size={11} className="text-white" />
             </button>
@@ -252,9 +375,11 @@ export default function ChatSidebar({
   );
 }
 
-function MessageRow({ msg, jokeText }: { msg: Message; jokeText: string }) {
+function MessageRow({ msg, jokeText, isStreaming: parentStreaming, streamingPaths }: { msg: Message; jokeText: string; isStreaming: boolean; streamingPaths: string[] }) {
   const isUser = msg.role === "user";
   const displayText = isUser ? msg.content : stripCode(msg.content);
+  // Extract file paths from completed assistant messages
+  const filePaths = !isUser && !msg.isStreaming ? extractFilePaths(msg.content) : [];
 
   return (
     <div className={`flex gap-2 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
@@ -263,22 +388,35 @@ function MessageRow({ msg, jokeText }: { msg: Message; jokeText: string }) {
           <Cpu size={10} className="text-white" />
         </div>
       )}
-      <div className={`rounded-xl px-3 py-2 text-[11px] leading-relaxed max-w-[85%] ${
-        isUser ? "bg-eburon-600/80 text-white rounded-tr-sm" : "bg-white/[0.04] text-gray-300 rounded-tl-sm border border-white/[0.05]"
-      }`}>
-        {msg.isStreaming && msg.content === "" ? (
-          <span className="text-gray-500 italic">{jokeText}</span>
-        ) : (
-          <>
-            <span>{displayText}</span>
-            {msg.isStreaming && (
-              <span className="inline-block w-0.5 h-3 bg-eburon-400 ml-0.5 animate-blink align-middle" />
-            )}
-          </>
-        )}
-        <div className={`text-[9px] mt-1 ${isUser ? "text-eburon-200/60" : "text-gray-600"}`}>
-          {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+      <div className="max-w-[88%] space-y-1.5">
+        <div className={`rounded-xl px-3 py-2 text-[11px] leading-relaxed ${
+          isUser ? "bg-eburon-600/80 text-white rounded-tr-sm" : "bg-white/[0.04] text-gray-300 rounded-tl-sm border border-white/[0.05]"
+        }`}>
+          {msg.isStreaming && msg.content === "" ? (
+            <span className="text-gray-500 italic">{jokeText}</span>
+          ) : (
+            <>
+              {displayText && <span>{displayText}</span>}
+              {!displayText && !isUser && <span className="text-gray-500 italic">Code generated → see editor</span>}
+              {msg.isStreaming && (
+                <span className="inline-block w-0.5 h-3 bg-eburon-400 ml-0.5 animate-blink align-middle" />
+              )}
+            </>
+          )}
+          <div className={`text-[9px] mt-1 ${isUser ? "text-eburon-200/60" : "text-gray-600"}`}>
+            {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          </div>
         </div>
+        {/* File path chips for completed messages */}
+        {filePaths.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {filePaths.map(p => (
+              <span key={p} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.06] text-[9px] text-gray-500 font-mono">
+                <FileCode size={8} className="text-cyan-500/60" />{p.split("/").pop()}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

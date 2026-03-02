@@ -11,6 +11,21 @@ function generateId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+/** Extract file paths from partial streaming content (including in-progress blocks) */
+function extractStreamingPaths(content: string): string[] {
+  const paths: string[] = [];
+  const seen = new Set<string>();
+  // Completed blocks: ```lang filepath ... ```
+  for (const m of content.matchAll(/```\w*\s+([\w][\w\-./]*\.\w+)/g)) {
+    if (!seen.has(m[1])) { seen.add(m[1]); paths.push(m[1]); }
+  }
+  // Context lines: **path**, `path`, ### path
+  for (const m of content.matchAll(/(?:\*\*`?|#{1,4}\s+|`)([\w][\w\-./]*\.(?:tsx?|jsx?|css|html|json|md|py|go|rs|ya?ml|sh|toml))`?\*?\*?/g)) {
+    if (!seen.has(m[1])) { seen.add(m[1]); paths.push(m[1]); }
+  }
+  return paths;
+}
+
 // ─── DB helpers (fire-and-forget, non-blocking) ────────────────────
 async function dbCreateSession(id: string, title: string, model?: string) {
   try {
@@ -88,6 +103,7 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [streamingContent, setStreamingContent] = useState("");
   const [displayedFiles, setDisplayedFiles] = useState<GeneratedFile[]>([]);
+  const [streamingPaths, setStreamingPaths] = useState<string[]>([]);
   const abortRef = useRef<AbortController | null>(null);
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
@@ -153,7 +169,6 @@ export default function Home() {
     const aId = generateId();
     const assistantMsg: Message = { id: aId, role: "assistant", content: "", timestamp: new Date(), isStreaming: true };
 
-    // Update title on first message
     const isFirst = (conversations.find((c) => c.id === convId)?.messages ?? []).length === 0;
     const newTitle = isFirst ? text.slice(0, 45) : undefined;
 
@@ -164,12 +179,12 @@ export default function Home() {
       updatedAt: new Date(),
     }));
 
-    // Persist user message to DB
     dbSaveMessage(convId, userMsg);
     if (newTitle) dbUpdateSession(convId, newTitle);
 
     setIsStreaming(true);
     setStreamingContent("");
+    setStreamingPaths([]);
     abortRef.current = new AbortController();
 
     try {
@@ -194,6 +209,7 @@ export default function Home() {
         const reader = res.body.getReader();
         const dec = new TextDecoder();
         let full = "";
+        let lastParseLen = 0;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -223,16 +239,24 @@ export default function Home() {
               }
             }
           }
+
+          // Incrementally parse completed files + streaming file paths
+          if (full.length - lastParseLen > 100) {
+            lastParseLen = full.length;
+            const paths = extractStreamingPaths(full);
+            setStreamingPaths(paths);
+            const partial = parseGeneratedFiles(full);
+            if (partial.length > 0) setDisplayedFiles(partial);
+          }
         }
 
-        // Parse files once streaming completes
+        // Final parse
         const parsed = parseGeneratedFiles(full);
         let finalFiles: GeneratedFile[] = [];
         if (parsed.length >= 1) {
           finalFiles = parsed;
           setDisplayedFiles(parsed);
         } else if (full.includes("```")) {
-          // Fallback: extract code blocks even without file paths
           const codeBlocks = [...full.matchAll(/```(\w*)\n([\s\S]*?)```/g)];
           if (codeBlocks.length > 0) {
             finalFiles = codeBlocks.map((m, i) => ({
@@ -244,7 +268,7 @@ export default function Home() {
           }
         }
 
-        // Persist assistant message and generated files to DB
+        setStreamingPaths([]);
         dbSaveMessage(convId!, { id: aId, role: "assistant", content: full });
         if (finalFiles.length > 0) dbSaveFiles(convId!, finalFiles);
       }
@@ -272,6 +296,7 @@ export default function Home() {
     abortRef.current?.abort();
     setIsStreaming(false);
     setStreamingContent("");
+    setStreamingPaths([]);
   }, []);
 
   // When switching conversations, restore files from last assistant message
@@ -301,9 +326,9 @@ export default function Home() {
       {/* ── Left sidebar ── */}
       <aside
         className="shrink-0 transition-all duration-300 overflow-hidden"
-        style={{ width: sidebarOpen ? "300px" : "0px" }}
+        style={{ width: sidebarOpen ? "340px" : "0px" }}
       >
-        <div className="w-[300px] h-full pl-10">
+        <div className="w-[340px] h-full pl-10">
           <ChatSidebar
             conversations={conversations}
             activeConvId={activeConvId}
@@ -312,6 +337,8 @@ export default function Home() {
             activeEndpoint={activeEndpoint}
             isDetecting={isDetecting}
             isStreaming={isStreaming}
+            streamingPaths={streamingPaths}
+            generatedFileCount={displayedFiles.length}
             onNew={createConversation}
             onSelect={setActiveConvId}
             onDelete={deleteConversation}
