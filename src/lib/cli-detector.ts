@@ -18,7 +18,7 @@ const VERSION_PROBES: Record<number, { path: string; extract: (body: string) => 
     extract: (b) => {
       try {
         const d = JSON.parse(b);
-        if (d.provider === "opencode" || d.name?.includes("Eburon")) {
+        if (d.provider === "ollama" || d.name?.includes("Eburon")) {
           return { model: d.model ?? "eburonmax/codemax-v3", version: d.version };
         }
         return {};

@@ -1,45 +1,13 @@
 /**
  * Eburon Codemax Bridge Server
- * Exposes an Ollama-compatible HTTP API that routes to opencode/eburonmax/codemax-v3
- * Allows the Eburon Codepilot web app to use the CLI as its LLM backend.
+ * Exposes an Ollama-compatible HTTP API that routes to eburonmax/codemax-v3
+ * directly via Ollama — fully independent, no external CLI dependencies.
  */
 import http from "http";
-import { spawn } from "child_process";
-import { fileURLToPath } from "url";
-import { dirname, resolve } from "path";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const CLI_DIR = resolve(__dirname, "..");
-
-const OPENCODE_BIN =
-  process.env.OPENCODE_PATH ||
-  `${process.env.HOME}/.opencode/bin/opencode` ||
-  "opencode";
-
-const MODEL = "ollama/eburonmax/codemax-v3";
+const OLLAMA_URL = process.env.OLLAMA_URL ?? "http://localhost:11434";
+const MODEL = process.env.EBURON_MODEL ?? "eburonmax/codemax-v3:latest";
 const PORT = Number(process.env.EBURON_CLI_PORT ?? 3333);
-
-// ─── opencode runner ─────────────────────────────────────────────
-function runOpencode(
-  prompt: string,
-  onChunk: (text: string) => void
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(
-      OPENCODE_BIN,
-      ["run", "--model", MODEL, "--dir", CLI_DIR, prompt],
-      { env: { ...process.env }, cwd: CLI_DIR }
-    );
-
-    proc.stdout.on("data", (d: Buffer) => onChunk(d.toString()));
-    proc.stderr.on("data", () => {}); // suppress
-    proc.on("close", (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`opencode exited ${code}`));
-    });
-    proc.on("error", reject);
-  });
-}
 
 function readBody(req: http.IncomingMessage): Promise<string> {
   return new Promise((res) => {
@@ -70,10 +38,10 @@ const server = http.createServer(async (req, res) => {
     res.end(
       JSON.stringify({
         status: "ok",
-        model: "eburonmax/codemax-v3",
-        provider: "opencode",
+        model: MODEL,
+        provider: "ollama",
         name: "Eburon Codemax CLI",
-        version: "1.0.0",
+        version: "2.0.0",
       })
     );
     return;
@@ -81,21 +49,29 @@ const server = http.createServer(async (req, res) => {
 
   // Ollama-compatible /api/tags (for model detection by the web app)
   if (url.pathname === "/api/tags") {
+    // Proxy to Ollama if available, otherwise return our model
+    try {
+      const ollamaRes = await fetch(`${OLLAMA_URL}/api/tags`);
+      if (ollamaRes.ok) {
+        const data = await ollamaRes.json();
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(data));
+        return;
+      }
+    } catch { /* fallback below */ }
+
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(
       JSON.stringify({
-        models: [{ name: "eburonmax/codemax-v3", model: "eburonmax/codemax-v3", size: 0 }],
+        models: [{ name: MODEL, model: MODEL, size: 0 }],
       })
     );
     return;
   }
 
-  // Chat endpoint — POST /api/chat
+  // Chat endpoint — POST /api/chat (proxy to Ollama)
   if (req.method === "POST" && url.pathname === "/api/chat") {
-    let body: {
-      messages?: { role: string; content: string }[];
-      stream?: boolean;
-    } = {};
+    let body: Record<string, unknown> = {};
     try {
       body = JSON.parse(await readBody(req));
     } catch {
@@ -104,66 +80,64 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    const messages = body.messages ?? [];
+    const messages = (body.messages as Array<{ role: string; content: string }>) ?? [];
     if (messages.length === 0) {
-      // Probe request from detector — just return 200
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ message: { role: "assistant", content: "" }, done: true }));
       return;
     }
 
-    const lastUser = [...messages].reverse().find((m) => m.role === "user");
-    const prompt = lastUser?.content ?? "";
-
     const streaming = body.stream !== false;
 
-    if (streaming) {
-      res.writeHead(200, {
-        "Content-Type": "application/x-ndjson",
-        "Transfer-Encoding": "chunked",
-        "Cache-Control": "no-cache",
-      });
-    }
-
-    let fullResponse = "";
-
     try {
-      await runOpencode(prompt, (chunk) => {
-        fullResponse += chunk;
-        if (streaming && !res.destroyed) {
-          const event = {
-            model: "eburonmax/codemax-v3",
-            message: { role: "assistant", content: chunk },
-            done: false,
-          };
-          res.write(JSON.stringify(event) + "\n");
-        }
+      // Forward to Ollama directly
+      const ollamaRes = await fetch(`${OLLAMA_URL}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: (body.model as string) ?? MODEL,
+          messages,
+          stream: streaming,
+        }),
       });
 
-      if (streaming && !res.destroyed) {
-        res.write(
-          JSON.stringify({
-            model: "eburonmax/codemax-v3",
-            message: { role: "assistant", content: "" },
-            done: true,
-          }) + "\n"
-        );
-        res.end();
-      } else if (!streaming) {
+      if (!ollamaRes.ok) {
+        const text = await ollamaRes.text();
+        res.writeHead(ollamaRes.status, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: `Ollama error: ${ollamaRes.status}`, detail: text }));
+        return;
+      }
+
+      if (streaming && ollamaRes.body) {
+        res.writeHead(200, {
+          "Content-Type": "application/x-ndjson",
+          "Transfer-Encoding": "chunked",
+          "Cache-Control": "no-cache",
+        });
+
+        // Stream Ollama response chunks to client
+        const reader = (ollamaRes.body as ReadableStream<Uint8Array>).getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (!res.destroyed) {
+            res.write(decoder.decode(value, { stream: true }));
+          }
+        }
+        if (!res.destroyed) res.end();
+      } else {
+        // Non-streaming: return full response
+        const data = await ollamaRes.json();
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(
-          JSON.stringify({
-            model: "eburonmax/codemax-v3",
-            message: { role: "assistant", content: fullResponse },
-            done: true,
-          })
-        );
+        res.end(JSON.stringify(data));
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (!res.headersSent) {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: msg }));
+        res.writeHead(502, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Cannot reach Ollama", detail: msg }));
       } else if (!res.destroyed) {
         res.end();
       }
@@ -178,11 +152,12 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`
-  ⚡ Eburon Codemax CLI Bridge Server
+  ⚡ Eburon Codemax Bridge Server
   ──────────────────────────────────────
   Running on  http://localhost:${PORT}
-  Model       eburonmax/codemax-v3  (via opencode)
-  Creator     Master E · Eburon AI
+  Ollama      ${OLLAMA_URL}
+  Model       ${MODEL}
+  Creator     Jo Lernout · Eburon AI
   
   Endpoints:
     POST /api/chat    — Ollama-compatible chat
