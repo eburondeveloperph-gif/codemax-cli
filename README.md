@@ -162,7 +162,7 @@ This License is effective until terminated. It terminates automatically if You b
 
 ### 10) Governing Law
 
-This License shall be governed by the laws applicable in the Philippines, without regard to conflict of law principles, unless otherwise required by applicable law.
+This License shall be governed by the laws applicable in Belgium, without regard to conflict of law principles, unless otherwise required by applicable law.
 
 ### 11) Contact / Permissions
 
