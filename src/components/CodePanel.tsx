@@ -75,6 +75,7 @@ function makePreviewURL(files: GeneratedFile[]): string | null {
   if (files.length === 0) return null;
   const cssFiles = files.filter((f) => ["css", "scss"].includes(f.language));
   const styles = cssFiles.map((f) => f.content).join("\n");
+  const allContent = files.map((f) => f.content).join("\n");
 
   // Plain HTML project
   const htmlFile = files.find((f) => f.path === "index.html" || f.path.endsWith("/index.html"));
@@ -89,23 +90,79 @@ function makePreviewURL(files: GeneratedFile[]): string | null {
     return URL.createObjectURL(new Blob([html], { type: "text/html" }));
   }
 
-  // React / TS project — Babel standalone
+  // React / TS project — Babel standalone with CDN libraries
   const reactCode = preprocessReact(files);
   if (!reactCode) return null;
-  const useTailwind = files.some((f) => f.content.includes("tailwind") || (f.content.includes("className=") && /\b(flex|grid|text-|bg-|p-\d|m-\d|rounded)/.test(f.content)));
+
+  // Auto-detect which CDN libs to include
+  const useTailwind = allContent.includes("tailwind") || (allContent.includes("className=") && /\b(flex|grid|text-|bg-|p-\d|m-\d|rounded)/.test(allContent));
+  const useLucide = allContent.includes("lucide-react") || allContent.includes("from \"lucide-react\"");
+  const useFramerMotion = allContent.includes("framer-motion");
+  const useRouter = allContent.includes("react-router") || allContent.includes("BrowserRouter");
+  const useIcons = allContent.includes("react-icons");
+
+  const cdnScripts = [
+    '<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>',
+    '<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>',
+    '<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>',
+    useTailwind ? '<script src="https://cdn.tailwindcss.com"></script>' : "",
+    useLucide ? '<script src="https://unpkg.com/lucide-react@latest/dist/umd/lucide-react.min.js"></script>' : "",
+    useRouter ? '<script src="https://unpkg.com/react-router-dom@6/dist/umd/react-router-dom.production.min.js"></script>' : "",
+  ].filter(Boolean).join("\n");
+
+  // Tailwind config for custom theme
+  const tailwindConfig = useTailwind ? `
+<script>
+if(typeof tailwind!=='undefined'){tailwind.config={theme:{extend:{colors:{primary:{"50":"#f0f4ff","100":"#e0e9ff","200":"#c7d7fe","300":"#a5b9fd","400":"#8093fa","500":"#6366f1","600":"#4f46e5","700":"#4338ca","800":"#3730a3","900":"#312e81"}},fontFamily:{sans:["Inter","system-ui","sans-serif"]}}}}}
+</script>` : "";
+
+  // Shims for libraries the code imports but we provide via CDN
+  const shims = `
+${useLucide ? "window.lucideReact = window.lucideReact || {};" : ""}
+${useFramerMotion ? `
+window.motion = { div: 'div', span: 'span', button: 'button', section: 'section', a: 'a', img: 'img', h1: 'h1', h2: 'h2', h3: 'h3', p: 'p', ul: 'ul', li: 'li', nav: 'nav', header: 'header', footer: 'footer', main: 'main' };
+window.AnimatePresence = function(props){return props.children};
+` : ""}
+`;
 
   const html = `<!DOCTYPE html><html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Preview</title>
-<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-${useTailwind ? '<script src="https://cdn.tailwindcss.com"></script>' : ""}
-<style>*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,sans-serif}${styles}</style>
+<meta name="theme-color" content="#4f46e5">
+<title>Preview — Eburon Codemax</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+${cdnScripts}
+${tailwindConfig}
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:'Inter',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.15);border-radius:3px}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.animate-fade-in{animation:fadeIn 0.5s ease-out forwards}
+${styles}
+</style>
 </head><body><div id="root"></div>
+<script>${shims}</script>
 <script type="text/babel" data-presets="react,typescript">
+const {useState,useEffect,useRef,useMemo,useCallback,createContext,useContext} = React;
+${useLucide ? "const lucide = window.lucideReact || {};" : ""}
+
 ${reactCode}
-try{const r=document.getElementById('root');if(r&&typeof App!=='undefined'){ReactDOM.createRoot(r).render(React.createElement(App))}else if(r){r.innerHTML='<div style="padding:24px;color:#888;font-family:monospace">No App component found</div>'}}catch(e){document.getElementById('root').innerHTML='<div style="padding:24px;font-family:monospace;color:#ef4444"><b>Preview Error</b><br><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+String(e.message||e)+'</pre></div>'}
+
+try{
+  const r=document.getElementById('root');
+  if(r){
+    const root=ReactDOM.createRoot(r);
+    if(typeof App!=='undefined') root.render(React.createElement(App));
+    else if(typeof Home!=='undefined') root.render(React.createElement(Home));
+    else if(typeof Page!=='undefined') root.render(React.createElement(Page));
+    else if(typeof Main!=='undefined') root.render(React.createElement(Main));
+    else if(typeof Landing!=='undefined') root.render(React.createElement(Landing));
+    else r.innerHTML='<div style="padding:24px;color:#888;font-family:monospace">No root component found (expected App, Home, Page, Main, or Landing)</div>';
+  }
+}catch(e){document.getElementById('root').innerHTML='<div style="padding:24px;font-family:monospace;color:#ef4444"><b>Preview Error</b><br><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+String(e.message||e)+'</pre></div>'}
 </script></body></html>`;
 
   return URL.createObjectURL(new Blob([html], { type: "text/html" }));
