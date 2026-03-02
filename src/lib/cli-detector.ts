@@ -1,4 +1,5 @@
 import { CLIEndpoint } from "@/types";
+import { execSync } from "child_process";
 
 const DEFAULT_PORTS = [3333, 3001, 4000, 5000, 8000, 8080, 8888, 11434, 1234];
 
@@ -8,6 +9,74 @@ const PREFERRED_MODELS = [
   "eburonmax/codemax-v3:latest",
   "codemax-v3",
   "codemax-v3:latest",
+];
+
+// ── External AI CLI definitions ───────────────────────────────────
+interface ExternalCLI {
+  name: string;
+  processPatterns: string[];       // grep patterns to match running processes
+  binaryNames: string[];           // binary names to check in PATH
+  defaultPort?: number;            // if it exposes an HTTP server
+  healthPath?: string;             // health check path
+  chatPath?: string;               // chat API path
+  icon: string;                    // emoji identifier
+}
+
+const EXTERNAL_CLIS: ExternalCLI[] = [
+  {
+    name: "GitHub Copilot",
+    processPatterns: ["copilot", "github-copilot"],
+    binaryNames: ["copilot", "github-copilot-cli"],
+    icon: "🐙",
+  },
+  {
+    name: "OpenAI Codex CLI",
+    processPatterns: ["codex"],
+    binaryNames: ["codex"],
+    icon: "🧠",
+  },
+  {
+    name: "OpenCode",
+    processPatterns: ["opencode"],
+    binaryNames: ["opencode"],
+    defaultPort: 3333,
+    healthPath: "/health",
+    chatPath: "/api/chat",
+    icon: "⚡",
+  },
+  {
+    name: "Claude Code",
+    processPatterns: ["claude"],
+    binaryNames: ["claude"],
+    icon: "🟠",
+  },
+  {
+    name: "Aider",
+    processPatterns: ["aider"],
+    binaryNames: ["aider"],
+    icon: "🔧",
+  },
+  {
+    name: "Cursor Agent",
+    processPatterns: ["cursor"],
+    binaryNames: ["cursor"],
+    icon: "📐",
+  },
+  {
+    name: "Continue.dev",
+    processPatterns: ["continue"],
+    binaryNames: ["continue"],
+    defaultPort: 65432,
+    healthPath: "/health",
+    chatPath: "/v1/chat/completions",
+    icon: "🔄",
+  },
+  {
+    name: "Cline",
+    processPatterns: ["cline"],
+    binaryNames: ["cline"],
+    icon: "📟",
+  },
 ];
 
 /** Known LLM runtimes to probe for version info */
@@ -103,7 +172,78 @@ export async function detectCLIEndpoints(): Promise<CLIEndpoint[]> {
 
   const filtered = results.filter((r) => r !== null) as CLIEndpoint[];
   detected.push(...filtered);
+
+  // ── Detect external AI CLI tools running as processes ──
+  const externalCLIs = await detectExternalCLIs();
+  detected.push(...externalCLIs);
+
   return detected;
+}
+
+// ── External AI CLI detection ─────────────────────────────────────
+
+/** Check if a process matching any pattern is running */
+function isProcessRunning(patterns: string[]): boolean {
+  try {
+    const ps = execSync("ps aux 2>/dev/null", { encoding: "utf-8", timeout: 2000 });
+    const lower = ps.toLowerCase();
+    return patterns.some((p) => lower.includes(p.toLowerCase()));
+  } catch {
+    return false;
+  }
+}
+
+/** Check if a binary exists in PATH */
+function binaryExists(name: string): boolean {
+  try {
+    execSync(`which ${name} 2>/dev/null`, { encoding: "utf-8", timeout: 1000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function detectExternalCLIs(): Promise<CLIEndpoint[]> {
+  const endpoints: CLIEndpoint[] = [];
+  let extIndex = 1;
+
+  // Get process list once
+  let psList = "";
+  try {
+    psList = execSync("ps aux 2>/dev/null", { encoding: "utf-8", timeout: 2000 }).toLowerCase();
+  } catch { /* no ps available */ }
+
+  for (const cli of EXTERNAL_CLIS) {
+    const running = psList ? cli.processPatterns.some((p) => psList.includes(p.toLowerCase())) : false;
+    const installed = cli.binaryNames.some((b) => binaryExists(b));
+
+    if (!running && !installed) continue;
+
+    const extModel = `codemax-ext-${extIndex}`;
+    const status = running ? "online" as const : "offline" as const;
+
+    // If the CLI has an HTTP server, try to probe it
+    let url: string | undefined;
+    if (cli.defaultPort && cli.chatPath) {
+      const probed = await probeChatEndpoint(cli.defaultPort);
+      if (probed) url = probed;
+      else url = `http://localhost:${cli.defaultPort}${cli.chatPath}`;
+    }
+
+    endpoints.push({
+      id: `ext-${cli.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
+      name: `${cli.icon} ${cli.name} → ${extModel}`,
+      url: url || `ext://${cli.name.toLowerCase().replace(/\s+/g, "-")}`,
+      status,
+      type: url ? "http" : "local",
+      model: extModel,
+      lastChecked: new Date(),
+    });
+
+    extIndex++;
+  }
+
+  return endpoints;
 }
 
 /** POST a minimal LLM payload — only 2xx/4xx from a real LLM server counts */
