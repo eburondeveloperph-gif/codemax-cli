@@ -1,0 +1,40 @@
+{
+  "name": "git-workflows",
+  "description": "Git workflows, branching strategies, commit conventions, CI/CD patterns, and collaboration practices",
+  "category": "devops",
+  "version": "1.0.0",
+  "entries": [
+    {
+      "id": "git-conventional-commits",
+      "title": "Conventional Commits Standard",
+      "content": "Format: type(scope): description. Types: feat (new feature), fix (bug fix), docs (documentation), style (formatting), refactor, perf, test, build, ci, chore. Breaking changes: feat!: or BREAKING CHANGE footer. Enables automated changelogs and semver.",
+      "code": "# Feature\nfeat(auth): add Google OAuth login\n\n# Bug fix\nfix(api): handle null response from upstream\n\n# Breaking change\nfeat(api)!: change pagination to cursor-based\n\nBREAKING CHANGE: The `page` parameter is replaced with `cursor`.\n\n# With body\nfix(db): prevent connection pool exhaustion\n\nThe pool was not releasing connections on query errors.\nAdded proper try/finally blocks in all query functions.\n\n# Scoped to component\nrefactor(ChatSidebar): extract message list to separate component\n\n# CI/CD\nci: add Playwright E2E tests to GitHub Actions\n\n# Dependencies\nbuild(deps): upgrade Next.js to 15.5.12",
+      "tags": ["git", "conventional-commits", "changelog", "semver", "standards"],
+      "category": "devops"
+    },
+    {
+      "id": "git-branching-strategies",
+      "title": "Branching Strategies (Trunk, GitFlow, GitHub Flow)",
+      "content": "Trunk-based: everyone commits to main, short-lived feature branches (<1 day), feature flags for WIP. GitHub Flow: main + feature branches, PR reviews, merge to main, deploy main. GitFlow: main, develop, feature/*, release/*, hotfix/* (complex, for scheduled releases).",
+      "code": "# GitHub Flow (recommended for most teams)\n# 1. Create feature branch from main\ngit checkout main && git pull\ngit checkout -b feat/add-search\n\n# 2. Make commits\ngit add . && git commit -m \"feat(search): add full-text search\"\n\n# 3. Push and create PR\ngit push -u origin feat/add-search\ngh pr create --title \"feat: add full-text search\" --body \"Adds search with debounce and highlights\"\n\n# 4. After review, merge (squash preferred for clean history)\ngh pr merge --squash\n\n# 5. Clean up\ngit checkout main && git pull\ngit branch -d feat/add-search\n\n# Trunk-based (for experienced teams)\n# Short-lived branches, merged within hours\ngit checkout -b fix/typo-header\ngit commit -am \"fix: typo in header\"\ngit push && gh pr create --title \"fix: typo\" && gh pr merge --squash",
+      "tags": ["git", "branching", "github-flow", "trunk-based", "workflow"],
+      "category": "devops"
+    },
+    {
+      "id": "git-github-actions-ci",
+      "title": "GitHub Actions CI/CD Pipeline",
+      "content": "Automate testing, building, and deployment with GitHub Actions. Run on push/PR. Matrix testing for multiple Node versions. Cache dependencies. Deploy to Vercel/AWS on main merge.",
+      "code": "# .github/workflows/ci.yml\nname: CI\non:\n  push:\n    branches: [main]\n  pull_request:\n    branches: [main]\n\njobs:\n  test:\n    runs-on: ubuntu-latest\n    strategy:\n      matrix:\n        node-version: [18, 20]\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: ${{ matrix.node-version }}\n          cache: 'npm'\n      - run: npm ci\n      - run: npm run lint\n      - run: npm run build\n      - run: npm test\n\n  deploy:\n    needs: test\n    if: github.ref == 'refs/heads/main'\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: amondnet/vercel-action@v25\n        with:\n          vercel-token: ${{ secrets.VERCEL_TOKEN }}\n          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}\n          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}\n          vercel-args: '--prod'",
+      "tags": ["git", "github-actions", "ci-cd", "deployment", "automation"],
+      "category": "devops"
+    },
+    {
+      "id": "git-pr-best-practices",
+      "title": "Pull Request Best Practices",
+      "content": "Small PRs (< 400 lines). Descriptive title (conventional commit format). PR template with: what, why, how, testing. Link to issue. Self-review before requesting. Add screenshots for UI changes. Respond to all comments.",
+      "code": "# .github/pull_request_template.md\n## What\n<!-- Brief description of changes -->\n\n## Why\n<!-- Link to issue, explain motivation -->\nCloses #123\n\n## How\n<!-- Implementation approach, key decisions -->\n\n## Testing\n- [ ] Unit tests added/updated\n- [ ] Manual testing performed\n- [ ] No console errors\n\n## Screenshots\n<!-- For UI changes, add before/after screenshots -->\n\n## Checklist\n- [ ] Code follows project conventions\n- [ ] Self-reviewed the diff\n- [ ] Types are correct\n- [ ] No unnecessary console.log statements\n- [ ] Documentation updated if needed",
+      "tags": ["git", "pull-request", "code-review", "collaboration", "template"],
+      "category": "devops"
+    }
+  ]
+}

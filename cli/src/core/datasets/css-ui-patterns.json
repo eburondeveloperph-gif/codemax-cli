@@ -1,0 +1,48 @@
+{
+  "name": "css-ui-patterns",
+  "description": "Modern CSS & UI patterns: animations, scroll effects, responsive layouts, accessibility, component patterns",
+  "category": "styling",
+  "version": "1.0.0",
+  "entries": [
+    {
+      "id": "css-scroll-animations",
+      "title": "Scroll-Triggered Animations",
+      "content": "Use IntersectionObserver for scroll-triggered animations. Fade-in, slide-up, scale-in effects. Stagger children with animation-delay. CSS scroll-driven animations (modern browsers).",
+      "code": "// IntersectionObserver hook\nfunction useScrollAnimation(threshold = 0.1) {\n  const ref = useRef<HTMLDivElement>(null);\n  const [visible, setVisible] = useState(false);\n  \n  useEffect(() => {\n    const observer = new IntersectionObserver(\n      ([entry]) => { if (entry.isIntersecting) { setVisible(true); observer.disconnect(); } },\n      { threshold }\n    );\n    if (ref.current) observer.observe(ref.current);\n    return () => observer.disconnect();\n  }, [threshold]);\n  \n  return { ref, visible };\n}\n\n// Usage\nfunction FadeInSection({ children }) {\n  const { ref, visible } = useScrollAnimation();\n  return (\n    <div ref={ref} className={`transition-all duration-700 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>\n      {children}\n    </div>\n  );\n}\n\n// Staggered children\n<div className=\"grid gap-4\">\n  {items.map((item, i) => (\n    <div key={i} style={{ transitionDelay: `${i * 100}ms` }}\n         className={`transition-all duration-500 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>\n      {item}\n    </div>\n  ))}\n</div>",
+      "tags": ["css", "animations", "scroll", "intersection-observer", "fade-in"],
+      "category": "styling"
+    },
+    {
+      "id": "css-hero-sections",
+      "title": "Hero Section Patterns",
+      "content": "Full-viewport hero: min-h-screen with centered content. Gradient overlays on images. Animated background (gradient shift, particles). Responsive typography. CTA buttons with hover states.",
+      "code": "<!-- Gradient hero -->\n<section class=\"relative min-h-screen flex items-center justify-center overflow-hidden\">\n  <div class=\"absolute inset-0 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500\" />\n  <div class=\"absolute inset-0 bg-[url('/grid.svg')] opacity-20\" />\n  <div class=\"relative z-10 text-center px-4 max-w-4xl\">\n    <h1 class=\"text-4xl sm:text-5xl lg:text-7xl font-bold text-white mb-6 leading-tight\">\n      Build something <span class=\"text-transparent bg-clip-text bg-gradient-to-r from-amber-200 to-yellow-400\">amazing</span>\n    </h1>\n    <p class=\"text-lg sm:text-xl text-white/80 mb-8 max-w-2xl mx-auto\">Create stunning applications with modern tools and AI-powered assistance.</p>\n    <div class=\"flex flex-col sm:flex-row gap-4 justify-center\">\n      <a href=\"#\" class=\"px-8 py-4 bg-white text-indigo-600 font-semibold rounded-full hover:bg-gray-100 transition-colors shadow-lg hover:shadow-xl\">Get Started</a>\n      <a href=\"#\" class=\"px-8 py-4 border-2 border-white/30 text-white font-semibold rounded-full hover:bg-white/10 transition-colors\">Learn More</a>\n    </div>\n  </div>\n</section>",
+      "tags": ["css", "hero", "landing-page", "gradient", "responsive"],
+      "category": "styling"
+    },
+    {
+      "id": "css-card-components",
+      "title": "Card Component Variations",
+      "content": "Card patterns: basic (shadow + rounded), image top, horizontal (image left), overlay (image bg + gradient overlay), interactive (hover lift + shadow), skeleton loading.",
+      "code": "<!-- Image card with hover -->\n<div class=\"group relative bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1\">\n  <div class=\"aspect-video overflow-hidden\">\n    <img src={imageUrl} class=\"w-full h-full object-cover group-hover:scale-110 transition-transform duration-500\" />\n  </div>\n  <div class=\"p-5\">\n    <span class=\"text-xs font-medium text-indigo-500 uppercase tracking-wider\">{category}</span>\n    <h3 class=\"text-lg font-semibold mt-1 group-hover:text-indigo-500 transition-colors\">{title}</h3>\n    <p class=\"text-gray-500 dark:text-gray-400 text-sm mt-2 line-clamp-2\">{description}</p>\n  </div>\n</div>\n\n<!-- Overlay card -->\n<div class=\"relative aspect-[4/3] rounded-2xl overflow-hidden group cursor-pointer\">\n  <img src={imageUrl} class=\"w-full h-full object-cover group-hover:scale-110 transition-transform duration-700\" />\n  <div class=\"absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent\" />\n  <div class=\"absolute bottom-0 p-6 text-white\">\n    <h3 class=\"text-xl font-bold\">{title}</h3>\n    <p class=\"text-white/70 mt-1\">{subtitle}</p>\n  </div>\n</div>",
+      "tags": ["css", "cards", "components", "hover", "responsive"],
+      "category": "styling"
+    },
+    {
+      "id": "css-accessibility",
+      "title": "Accessibility (a11y) CSS Patterns",
+      "content": "Visually hidden text for screen readers. Focus indicators (focus-visible). Skip navigation links. Reduced motion media query. Sufficient color contrast. Touch target sizes (44px+).",
+      "code": "/* Visually hidden but accessible */\n.sr-only {\n  position: absolute;\n  width: 1px;\n  height: 1px;\n  padding: 0;\n  margin: -1px;\n  overflow: hidden;\n  clip: rect(0, 0, 0, 0);\n  white-space: nowrap;\n  border-width: 0;\n}\n\n/* Focus indicator */\n*:focus-visible {\n  outline: 2px solid #6366f1;\n  outline-offset: 2px;\n  border-radius: 2px;\n}\n\n/* Reduced motion */\n@media (prefers-reduced-motion: reduce) {\n  *, *::before, *::after {\n    animation-duration: 0.01ms !important;\n    animation-iteration-count: 1 !important;\n    transition-duration: 0.01ms !important;\n    scroll-behavior: auto !important;\n  }\n}\n\n/* Skip nav link */\n<a href=\"#main\" class=\"sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-indigo-600 focus:text-white focus:rounded\">\n  Skip to main content\n</a>\n\n/* Minimum touch target */\n.touch-target {\n  min-width: 44px;\n  min-height: 44px;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n}",
+      "tags": ["css", "accessibility", "a11y", "focus", "screen-reader"],
+      "category": "styling"
+    },
+    {
+      "id": "css-container-queries",
+      "title": "Container Queries for Component-Level Responsive Design",
+      "content": "Container queries: style based on parent size, not viewport. Use @container instead of @media. Define containment context with container-type. Works for reusable components in different layouts.",
+      "code": "/* Define container */\n.card-container {\n  container-type: inline-size;\n  container-name: card;\n}\n\n/* Style based on container width */\n@container card (min-width: 400px) {\n  .card {\n    display: grid;\n    grid-template-columns: 200px 1fr;\n    gap: 1rem;\n  }\n}\n\n@container card (max-width: 399px) {\n  .card {\n    display: flex;\n    flex-direction: column;\n  }\n  .card img {\n    aspect-ratio: 16/9;\n  }\n}\n\n/* Tailwind v3.2+ */\n<div class=\"@container\">\n  <div class=\"flex flex-col @md:flex-row @md:gap-4\">\n    <img class=\"@md:w-48\" />\n    <div>Content</div>\n  </div>\n</div>",
+      "tags": ["css", "container-queries", "responsive", "components", "modern"],
+      "category": "styling"
+    }
+  ]
+}

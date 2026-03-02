@@ -1,0 +1,72 @@
+{
+  "name": "react-patterns",
+  "description": "Modern React patterns, hooks, component architecture, and best practices",
+  "category": "frontend",
+  "version": "1.0.0",
+  "entries": [
+    {
+      "id": "react-compound-components",
+      "title": "Compound Components Pattern",
+      "content": "Use compound components for flexible, composable UI. Parent manages state via Context, children consume it. Ideal for Tabs, Accordions, Select dropdowns.",
+      "code": "const TabContext = React.createContext<{active:string;setActive:(s:string)=>void}|null>(null);\n\nfunction Tabs({ children, defaultTab }: { children: React.ReactNode; defaultTab: string }) {\n  const [active, setActive] = React.useState(defaultTab);\n  return <TabContext.Provider value={{active,setActive}}>{children}</TabContext.Provider>;\n}\n\nfunction Tab({ id, children }: { id: string; children: React.ReactNode }) {\n  const ctx = React.useContext(TabContext)!;\n  return <button onClick={()=>ctx.setActive(id)} className={ctx.active===id?'active':''}>{children}</button>;\n}\n\nfunction Panel({ id, children }: { id: string; children: React.ReactNode }) {\n  const ctx = React.useContext(TabContext)!;\n  return ctx.active===id ? <div>{children}</div> : null;\n}",
+      "tags": ["react", "patterns", "compound-components", "context", "composition"],
+      "category": "frontend"
+    },
+    {
+      "id": "react-custom-hooks",
+      "title": "Essential Custom Hooks Collection",
+      "content": "Reusable hooks: useLocalStorage (persistent state), useDebounce (delay input), useFetch (data fetching with loading/error), useMediaQuery (responsive breakpoints), useOnClickOutside (close modals), useIntersectionObserver (lazy loading).",
+      "code": "function useLocalStorage<T>(key: string, initial: T) {\n  const [value, setValue] = React.useState<T>(() => {\n    try { return JSON.parse(localStorage.getItem(key)!) ?? initial; } catch { return initial; }\n  });\n  React.useEffect(() => { localStorage.setItem(key, JSON.stringify(value)); }, [key, value]);\n  return [value, setValue] as const;\n}\n\nfunction useDebounce<T>(value: T, delay = 300) {\n  const [debounced, setDebounced] = React.useState(value);\n  React.useEffect(() => { const t = setTimeout(() => setDebounced(value), delay); return () => clearTimeout(t); }, [value, delay]);\n  return debounced;\n}\n\nfunction useMediaQuery(query: string) {\n  const [matches, setMatches] = React.useState(false);\n  React.useEffect(() => {\n    const mql = window.matchMedia(query);\n    setMatches(mql.matches);\n    const handler = (e: MediaQueryListEvent) => setMatches(e.matches);\n    mql.addEventListener('change', handler);\n    return () => mql.removeEventListener('change', handler);\n  }, [query]);\n  return matches;\n}",
+      "tags": ["react", "hooks", "useLocalStorage", "useDebounce", "useMediaQuery", "custom-hooks"],
+      "category": "frontend"
+    },
+    {
+      "id": "react-error-boundary",
+      "title": "Error Boundary with Fallback UI",
+      "content": "Class-based error boundary that catches render errors. Provide a fallback UI, error logging, and retry mechanism. Use react-error-boundary package for functional approach.",
+      "code": "class ErrorBoundary extends React.Component<\n  { children: React.ReactNode; fallback?: React.ReactNode },\n  { hasError: boolean; error: Error | null }\n> {\n  state = { hasError: false, error: null as Error | null };\n  static getDerivedStateFromError(error: Error) { return { hasError: true, error }; }\n  componentDidCatch(error: Error, info: React.ErrorInfo) { console.error('Boundary caught:', error, info); }\n  render() {\n    if (this.state.hasError) {\n      return this.props.fallback ?? (\n        <div className=\"p-8 text-center\">\n          <h2 className=\"text-xl font-bold text-red-500\">Something went wrong</h2>\n          <p className=\"text-gray-500 mt-2\">{this.state.error?.message}</p>\n          <button onClick={() => this.setState({ hasError: false })} className=\"mt-4 px-4 py-2 bg-blue-500 text-white rounded\">Try Again</button>\n        </div>\n      );\n    }\n    return this.props.children;\n  }\n}",
+      "tags": ["react", "error-boundary", "error-handling", "fallback"],
+      "category": "frontend"
+    },
+    {
+      "id": "react-render-props",
+      "title": "Render Props & Children as Function",
+      "content": "Share cross-cutting logic via render props. Component accepts a function as children or render prop, passes state/handlers to it. Useful for mouse tracking, form state, toggles.",
+      "code": "function Toggle({ children }: { children: (props: { on: boolean; toggle: () => void }) => React.ReactNode }) {\n  const [on, setOn] = React.useState(false);\n  return <>{children({ on, toggle: () => setOn(prev => !prev) })}</>;\n}\n\n// Usage:\n<Toggle>\n  {({ on, toggle }) => (\n    <button onClick={toggle}>{on ? 'ON' : 'OFF'}</button>\n  )}\n</Toggle>",
+      "tags": ["react", "render-props", "patterns", "composition"],
+      "category": "frontend"
+    },
+    {
+      "id": "react-context-reducer",
+      "title": "Context + useReducer for State Management",
+      "content": "Combine Context with useReducer for Redux-like state management without external libraries. Define actions, reducer, provider. Separate dispatch context for performance.",
+      "code": "type State = { items: string[]; loading: boolean };\ntype Action = { type: 'ADD'; item: string } | { type: 'REMOVE'; index: number } | { type: 'SET_LOADING'; loading: boolean };\n\nfunction reducer(state: State, action: Action): State {\n  switch (action.type) {\n    case 'ADD': return { ...state, items: [...state.items, action.item] };\n    case 'REMOVE': return { ...state, items: state.items.filter((_, i) => i !== action.index) };\n    case 'SET_LOADING': return { ...state, loading: action.loading };\n  }\n}\n\nconst StateCtx = React.createContext<State>({ items: [], loading: false });\nconst DispatchCtx = React.createContext<React.Dispatch<Action>>(() => {});\n\nfunction Provider({ children }: { children: React.ReactNode }) {\n  const [state, dispatch] = React.useReducer(reducer, { items: [], loading: false });\n  return <StateCtx.Provider value={state}><DispatchCtx.Provider value={dispatch}>{children}</DispatchCtx.Provider></StateCtx.Provider>;\n}\n\nconst useAppState = () => React.useContext(StateCtx);\nconst useAppDispatch = () => React.useContext(DispatchCtx);",
+      "tags": ["react", "context", "useReducer", "state-management", "patterns"],
+      "category": "frontend"
+    },
+    {
+      "id": "react-suspense-lazy",
+      "title": "Code Splitting with Suspense & lazy",
+      "content": "Use React.lazy() for route-level code splitting. Wrap with Suspense for loading fallback. Combine with React Router for per-route bundles.",
+      "code": "const Dashboard = React.lazy(() => import('./pages/Dashboard'));\nconst Settings = React.lazy(() => import('./pages/Settings'));\n\nfunction App() {\n  return (\n    <React.Suspense fallback={<div className=\"flex items-center justify-center h-screen\"><div className=\"animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full\" /></div>}>\n      <Routes>\n        <Route path=\"/\" element={<Dashboard />} />\n        <Route path=\"/settings\" element={<Settings />} />\n      </Routes>\n    </React.Suspense>\n  );\n}",
+      "tags": ["react", "code-splitting", "lazy", "suspense", "performance"],
+      "category": "frontend"
+    },
+    {
+      "id": "react-form-validation",
+      "title": "Form Handling with Validation",
+      "content": "Controlled form with field-level validation, error display, and submit handling. Use useForm hook pattern or react-hook-form for complex forms.",
+      "code": "function useForm<T extends Record<string, string>>(initial: T, validate: (values: T) => Partial<T>) {\n  const [values, setValues] = React.useState(initial);\n  const [errors, setErrors] = React.useState<Partial<T>>({});\n  const [touched, setTouched] = React.useState<Set<string>>(new Set());\n\n  const handleChange = (field: keyof T) => (e: React.ChangeEvent<HTMLInputElement>) => {\n    setValues(prev => ({ ...prev, [field]: e.target.value }));\n  };\n  const handleBlur = (field: keyof T) => () => {\n    setTouched(prev => new Set(prev).add(field as string));\n    setErrors(validate(values));\n  };\n  const handleSubmit = (onSubmit: (values: T) => void) => (e: React.FormEvent) => {\n    e.preventDefault();\n    const errs = validate(values);\n    setErrors(errs);\n    if (Object.keys(errs).length === 0) onSubmit(values);\n  };\n\n  return { values, errors, touched, handleChange, handleBlur, handleSubmit };\n}",
+      "tags": ["react", "forms", "validation", "hooks", "controlled-components"],
+      "category": "frontend"
+    },
+    {
+      "id": "react-portal-modal",
+      "title": "Modal with Portal & Focus Trap",
+      "content": "Render modal outside DOM hierarchy using createPortal. Trap focus inside modal, close on Escape, prevent body scroll.",
+      "code": "function Modal({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {\n  const ref = React.useRef<HTMLDivElement>(null);\n\n  React.useEffect(() => {\n    if (!open) return;\n    document.body.style.overflow = 'hidden';\n    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };\n    document.addEventListener('keydown', handleKey);\n    ref.current?.focus();\n    return () => { document.body.style.overflow = ''; document.removeEventListener('keydown', handleKey); };\n  }, [open, onClose]);\n\n  if (!open) return null;\n  return ReactDOM.createPortal(\n    <div className=\"fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm\" onClick={onClose}>\n      <div ref={ref} tabIndex={-1} className=\"bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-lg w-full mx-4\" onClick={e => e.stopPropagation()}>\n        {children}\n      </div>\n    </div>,\n    document.body\n  );\n}",
+      "tags": ["react", "modal", "portal", "focus-trap", "accessibility"],
+      "category": "frontend"
+    }
+  ]
+}

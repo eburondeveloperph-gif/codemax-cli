@@ -1,0 +1,48 @@
+{
+  "name": "security-patterns",
+  "description": "Web security: XSS prevention, CSRF, SQL injection, Content Security Policy, input sanitization, secrets management",
+  "category": "security",
+  "version": "1.0.0",
+  "entries": [
+    {
+      "id": "sec-xss-prevention",
+      "title": "XSS Prevention Strategies",
+      "content": "Cross-Site Scripting (XSS): attacker injects scripts via user input. Prevention: 1) React auto-escapes JSX (avoid dangerouslySetInnerHTML), 2) Sanitize HTML with DOMPurify, 3) Set Content-Security-Policy header, 4) Use httpOnly cookies, 5) Validate/encode outputs.",
+      "code": "// BAD — vulnerable to XSS\n<div dangerouslySetInnerHTML={{ __html: userInput }} />\n\n// GOOD — sanitize with DOMPurify\nimport DOMPurify from 'dompurify';\n<div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(userInput) }} />\n\n// GOOD — use textContent, React auto-escapes\n<p>{userInput}</p>\n\n// Content-Security-Policy header\n// next.config.js\nconst securityHeaders = [{\n  key: 'Content-Security-Policy',\n  value: \"default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com\",\n}];\n\n// Encode for different contexts\nfunction htmlEncode(str: string) { return str.replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#x27;'}[c]!)); }",
+      "tags": ["security", "xss", "sanitization", "csp", "prevention"],
+      "category": "security"
+    },
+    {
+      "id": "sec-csrf-protection",
+      "title": "CSRF Protection Patterns",
+      "content": "Cross-Site Request Forgery: attacker tricks user's browser into making requests. Prevention: 1) SameSite=Lax cookies (default modern browsers), 2) CSRF tokens in forms, 3) Check Origin/Referer headers, 4) Use custom headers for APIs.",
+      "code": "// CSRF token generation & verification\nimport { randomBytes, timingSafeEqual } from 'crypto';\n\nfunction generateCsrfToken(): string {\n  return randomBytes(32).toString('hex');\n}\n\nfunction verifyCsrfToken(token: string, sessionToken: string): boolean {\n  const a = Buffer.from(token);\n  const b = Buffer.from(sessionToken);\n  return a.length === b.length && timingSafeEqual(a, b);\n}\n\n// In form\n<input type=\"hidden\" name=\"csrf_token\" value={csrfToken} />\n\n// In API middleware\nfunction csrfMiddleware(req: NextRequest) {\n  if (['POST', 'PUT', 'DELETE'].includes(req.method)) {\n    const origin = req.headers.get('origin');\n    if (origin && !ALLOWED_ORIGINS.includes(origin)) {\n      return NextResponse.json({ error: 'CSRF check failed' }, { status: 403 });\n    }\n  }\n}",
+      "tags": ["security", "csrf", "tokens", "cookies", "prevention"],
+      "category": "security"
+    },
+    {
+      "id": "sec-input-validation",
+      "title": "Input Validation & Sanitization",
+      "content": "Validate ALL inputs server-side. Whitelist over blacklist. Use schema validation (Zod). Sanitize for context (HTML, SQL, URLs). Limit string lengths. Reject unexpected fields.",
+      "code": "import { z } from 'zod';\n\n// Strict input schema\nconst CreateUserInput = z.object({\n  email: z.string().email().max(254).trim().toLowerCase(),\n  name: z.string().min(1).max(100).trim(),\n  bio: z.string().max(500).optional(),\n  website: z.string().url().optional().or(z.literal('')),\n}).strict(); // Reject unknown fields\n\n// SQL parameterization (NEVER string concat)\n// BAD: `SELECT * FROM users WHERE email = '${email}'`\n// GOOD:\nconst result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);\n\n// URL validation\nfunction isSafeRedirect(url: string): boolean {\n  try {\n    const parsed = new URL(url, 'https://myapp.com');\n    return parsed.origin === 'https://myapp.com'; // Only allow same-origin\n  } catch { return false; }\n}\n\n// File upload validation\nconst ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];\nconst MAX_SIZE = 5 * 1024 * 1024; // 5MB\n\nfunction validateUpload(file: File): string | null {\n  if (!ALLOWED_TYPES.includes(file.type)) return 'Invalid file type';\n  if (file.size > MAX_SIZE) return 'File too large (max 5MB)';\n  return null;\n}",
+      "tags": ["security", "validation", "sanitization", "input", "zod"],
+      "category": "security"
+    },
+    {
+      "id": "sec-secrets-management",
+      "title": "Secrets & Environment Variables",
+      "content": "Never commit secrets to git. Use .env files locally, env vars in production. Validate required env vars at startup. Use NEXT_PUBLIC_ prefix only for client-safe values. Rotate secrets regularly.",
+      "code": "// Validate env at startup\nimport { z } from 'zod';\n\nconst envSchema = z.object({\n  DATABASE_URL: z.string().url(),\n  JWT_SECRET: z.string().min(32),\n  FIREBASE_PROJECT_ID: z.string(),\n  NEXT_PUBLIC_APP_URL: z.string().url(),\n  // Optional with defaults\n  PORT: z.coerce.number().default(3000),\n  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),\n});\n\nexport const env = envSchema.parse(process.env);\n\n// .env.example (commit this, not .env)\n// DATABASE_URL=postgresql://user:password@localhost:5432/mydb\n// JWT_SECRET=your-secret-at-least-32-chars-long\n// FIREBASE_PROJECT_ID=my-firebase-project\n\n// .gitignore\n// .env\n// .env.local\n// .env.*.local\n\n// Access in Next.js\n// Server: process.env.JWT_SECRET (available)\n// Client: process.env.NEXT_PUBLIC_APP_URL (available, exposed to browser)\n// Client: process.env.JWT_SECRET → undefined (not exposed)",
+      "tags": ["security", "secrets", "env-vars", "configuration", "gitignore"],
+      "category": "security"
+    },
+    {
+      "id": "sec-headers",
+      "title": "Security Headers Configuration",
+      "content": "Essential security headers: Strict-Transport-Security (HSTS), X-Content-Type-Options: nosniff, X-Frame-Options: DENY, Referrer-Policy, Permissions-Policy. Set in next.config.js or middleware.",
+      "code": "// next.config.js\nconst securityHeaders = [\n  { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },\n  { key: 'X-Content-Type-Options', value: 'nosniff' },\n  { key: 'X-Frame-Options', value: 'DENY' },\n  { key: 'X-XSS-Protection', value: '1; mode=block' },\n  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },\n  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },\n];\n\nmodule.exports = {\n  async headers() {\n    return [{ source: '/(.*)', headers: securityHeaders }];\n  },\n};",
+      "tags": ["security", "headers", "hsts", "csp", "next-config"],
+      "category": "security"
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "name": "nextjs-patterns",
+  "description": "Next.js App Router patterns, server components, data fetching, middleware, and deployment",
+  "category": "frontend",
+  "version": "1.0.0",
+  "entries": [
+    {
+      "id": "nextjs-app-router-layout",
+      "title": "App Router Layout & Page Structure",
+      "content": "Next.js 13+ App Router uses file-system routing. layout.tsx wraps children persistently, page.tsx renders route content. loading.tsx shows Suspense fallback. error.tsx handles errors. not-found.tsx for 404. Route groups with (name) organize without affecting URL.",
+      "code": "// app/layout.tsx\nexport default function RootLayout({ children }: { children: React.ReactNode }) {\n  return <html lang=\"en\"><body className=\"min-h-screen bg-background font-sans antialiased\">{children}</body></html>;\n}\n\n// app/(dashboard)/layout.tsx — route group\nexport default function DashboardLayout({ children }: { children: React.ReactNode }) {\n  return <div className=\"flex\"><Sidebar /><main className=\"flex-1 p-6\">{children}</main></div>;\n}\n\n// app/(dashboard)/settings/page.tsx\nexport default function SettingsPage() { return <h1>Settings</h1>; }\n\n// app/loading.tsx — Suspense fallback\nexport default function Loading() { return <div className=\"animate-pulse\">Loading...</div>; }",
+      "tags": ["nextjs", "app-router", "layout", "routing", "file-system"],
+      "category": "frontend"
+    },
+    {
+      "id": "nextjs-server-actions",
+      "title": "Server Actions for Form Mutations",
+      "content": "Server Actions run on the server, invoked from client forms. Use 'use server' directive. Works without API routes. Supports revalidation, redirects, cookies.",
+      "code": "// app/actions.ts\n'use server';\nimport { revalidatePath } from 'next/cache';\nimport { redirect } from 'next/navigation';\n\nexport async function createPost(formData: FormData) {\n  const title = formData.get('title') as string;\n  const content = formData.get('content') as string;\n  // Validate\n  if (!title || title.length < 3) throw new Error('Title too short');\n  // Save to DB\n  await db.insert(posts).values({ title, content });\n  revalidatePath('/posts');\n  redirect('/posts');\n}\n\n// app/posts/new/page.tsx\nimport { createPost } from '@/app/actions';\nexport default function NewPost() {\n  return (\n    <form action={createPost}>\n      <input name=\"title\" required minLength={3} />\n      <textarea name=\"content\" required />\n      <button type=\"submit\">Create Post</button>\n    </form>\n  );\n}",
+      "tags": ["nextjs", "server-actions", "forms", "mutations", "revalidation"],
+      "category": "frontend"
+    },
+    {
+      "id": "nextjs-api-routes",
+      "title": "Route Handlers (API Routes)",
+      "content": "Route handlers in app/api/ dir. Export GET, POST, PUT, DELETE functions. Use NextRequest/NextResponse. Support streaming, CORS, cookies, headers.",
+      "code": "// app/api/users/route.ts\nimport { NextRequest, NextResponse } from 'next/server';\n\nexport async function GET(req: NextRequest) {\n  const { searchParams } = new URL(req.url);\n  const page = parseInt(searchParams.get('page') ?? '1');\n  const users = await db.select().from(usersTable).limit(20).offset((page - 1) * 20);\n  return NextResponse.json({ users, page });\n}\n\nexport async function POST(req: NextRequest) {\n  const body = await req.json();\n  if (!body.email) return NextResponse.json({ error: 'Email required' }, { status: 400 });\n  const user = await db.insert(usersTable).values(body).returning();\n  return NextResponse.json(user, { status: 201 });\n}\n\n// app/api/users/[id]/route.ts — dynamic route\nexport async function GET(_: NextRequest, { params }: { params: { id: string } }) {\n  const user = await db.select().from(usersTable).where(eq(usersTable.id, params.id));\n  if (!user.length) return NextResponse.json({ error: 'Not found' }, { status: 404 });\n  return NextResponse.json(user[0]);\n}",
+      "tags": ["nextjs", "api-routes", "route-handlers", "rest-api"],
+      "category": "frontend"
+    },
+    {
+      "id": "nextjs-middleware",
+      "title": "Middleware for Auth & Redirects",
+      "content": "middleware.ts at project root runs before every request. Use for auth checks, redirects, geolocation, A/B testing. Runs on Edge runtime. Use matcher for path filtering.",
+      "code": "// middleware.ts\nimport { NextResponse } from 'next/server';\nimport type { NextRequest } from 'next/server';\n\nexport function middleware(request: NextRequest) {\n  const token = request.cookies.get('auth-token')?.value;\n  const isAuthPage = request.nextUrl.pathname.startsWith('/login');\n  const isProtected = request.nextUrl.pathname.startsWith('/dashboard');\n\n  if (isProtected && !token) {\n    return NextResponse.redirect(new URL('/login', request.url));\n  }\n  if (isAuthPage && token) {\n    return NextResponse.redirect(new URL('/dashboard', request.url));\n  }\n  return NextResponse.next();\n}\n\nexport const config = { matcher: ['/dashboard/:path*', '/login'] };",
+      "tags": ["nextjs", "middleware", "auth", "redirects", "edge"],
+      "category": "frontend"
+    },
+    {
+      "id": "nextjs-data-fetching",
+      "title": "Server Components Data Fetching",
+      "content": "Server Components fetch data directly with async/await. No useEffect needed. Use fetch() with caching options: force-cache (default), no-store, revalidate. Parallel fetching with Promise.all.",
+      "code": "// Server Component — fetches data at build/request time\nasync function PostsPage() {\n  // Cached (default) — revalidates every 60 seconds\n  const posts = await fetch('https://api.example.com/posts', { next: { revalidate: 60 } }).then(r => r.json());\n  \n  return <ul>{posts.map((p: Post) => <li key={p.id}>{p.title}</li>)}</ul>;\n}\n\n// Parallel data fetching\nasync function Dashboard() {\n  const [user, stats, notifications] = await Promise.all([\n    getUser(),\n    getStats(),\n    getNotifications(),\n  ]);\n  return <div>{/* use all three */}</div>;\n}\n\n// Dynamic rendering (no cache)\nasync function LiveFeed() {\n  const data = await fetch('https://api.example.com/live', { cache: 'no-store' }).then(r => r.json());\n  return <Feed items={data} />;\n}",
+      "tags": ["nextjs", "data-fetching", "server-components", "caching", "revalidation"],
+      "category": "frontend"
+    },
+    {
+      "id": "nextjs-streaming-suspense",
+      "title": "Streaming SSR with Suspense",
+      "content": "Stream server-rendered HTML progressively. Wrap slow components in Suspense with loading.tsx or inline fallbacks. Improves TTFB and perceived performance.",
+      "code": "// app/dashboard/page.tsx\nimport { Suspense } from 'react';\n\nexport default function Dashboard() {\n  return (\n    <div>\n      <h1>Dashboard</h1>\n      {/* Fast — rendered immediately */}\n      <UserGreeting />\n      \n      {/* Slow — streamed in after data loads */}\n      <Suspense fallback={<div className=\"animate-pulse h-48 bg-gray-200 rounded\" />}>\n        <RevenueChart />\n      </Suspense>\n      \n      <Suspense fallback={<TableSkeleton />}>\n        <RecentOrders />\n      </Suspense>\n    </div>\n  );\n}\n\n// Each of these can be async server components\nasync function RevenueChart() {\n  const data = await getRevenueData(); // slow DB query\n  return <Chart data={data} />;\n}",
+      "tags": ["nextjs", "streaming", "suspense", "ssr", "performance"],
+      "category": "frontend"
+    }
+  ]
+}

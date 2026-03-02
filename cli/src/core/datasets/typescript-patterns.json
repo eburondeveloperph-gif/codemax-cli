@@ -1,0 +1,48 @@
+{
+  "name": "typescript-patterns",
+  "description": "TypeScript advanced patterns, utility types, generics, type guards, and best practices",
+  "category": "language",
+  "version": "1.0.0",
+  "entries": [
+    {
+      "id": "ts-utility-types",
+      "title": "Essential Utility Types",
+      "content": "Built-in utility types: Partial<T> (all optional), Required<T> (all required), Readonly<T>, Pick<T,K> (subset), Omit<T,K> (exclude keys), Record<K,V> (key-value map), Extract<T,U>, Exclude<T,U>, NonNullable<T>, ReturnType<F>, Parameters<F>, Awaited<T> (unwrap Promise).",
+      "code": "// Make all fields optional for update\ntype UserUpdate = Partial<User>;\n\n// Pick specific fields\ntype UserPreview = Pick<User, 'id' | 'name' | 'avatar'>;\n\n// Omit sensitive fields\ntype PublicUser = Omit<User, 'password' | 'email'>;\n\n// Record for dictionaries\ntype ErrorMap = Record<string, string[]>;\n\n// Awaited for unwrapping promises\ntype Data = Awaited<ReturnType<typeof fetchUser>>;\n\n// Custom: DeepPartial\ntype DeepPartial<T> = { [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P] };\n\n// Custom: RequireAtLeastOne\ntype RequireAtLeastOne<T, Keys extends keyof T = keyof T> =\n  Pick<T, Exclude<keyof T, Keys>> & { [K in Keys]-?: Required<Pick<T, K>> & Partial<Pick<T, Exclude<Keys, K>>> }[Keys];",
+      "tags": ["typescript", "utility-types", "generics", "types"],
+      "category": "language"
+    },
+    {
+      "id": "ts-type-guards",
+      "title": "Type Guards & Narrowing",
+      "content": "Narrow types with: typeof (primitives), instanceof (classes), 'in' operator (property check), discriminated unions (literal field), custom type guards (is keyword).",
+      "code": "// Discriminated union\ntype Result<T> = { ok: true; data: T } | { ok: false; error: string };\n\nfunction handleResult<T>(result: Result<T>) {\n  if (result.ok) {\n    console.log(result.data); // narrowed to { ok: true; data: T }\n  } else {\n    console.error(result.error); // narrowed to { ok: false; error: string }\n  }\n}\n\n// Custom type guard\nfunction isUser(obj: unknown): obj is User {\n  return typeof obj === 'object' && obj !== null && 'id' in obj && 'email' in obj;\n}\n\n// Assertion function\nfunction assertDefined<T>(value: T | null | undefined, name: string): asserts value is T {\n  if (value == null) throw new Error(`${name} is not defined`);\n}\n\n// Exhaustive check\nfunction assertNever(x: never): never { throw new Error(`Unexpected value: ${x}`); }",
+      "tags": ["typescript", "type-guards", "narrowing", "discriminated-unions"],
+      "category": "language"
+    },
+    {
+      "id": "ts-generic-patterns",
+      "title": "Advanced Generic Patterns",
+      "content": "Generic constraints (extends), conditional types (T extends U ? X : Y), mapped types, template literal types, infer keyword for extraction.",
+      "code": "// Constrained generic\nfunction getProperty<T, K extends keyof T>(obj: T, key: K): T[K] {\n  return obj[key];\n}\n\n// Generic factory\nfunction createStore<T>(initial: T) {\n  let state = initial;\n  return {\n    get: () => state,\n    set: (next: T) => { state = next; },\n    update: (fn: (prev: T) => T) => { state = fn(state); },\n  };\n}\n\n// Conditional type\ntype IsArray<T> = T extends unknown[] ? true : false;\ntype Flatten<T> = T extends (infer U)[] ? U : T;\n\n// Template literal types\ntype EventName = `on${Capitalize<'click' | 'focus' | 'blur'>}`; // 'onClick' | 'onFocus' | 'onBlur'\n\n// Mapped type with transformation\ntype Getters<T> = { [K in keyof T as `get${Capitalize<string & K>}`]: () => T[K] };",
+      "tags": ["typescript", "generics", "conditional-types", "mapped-types", "advanced"],
+      "category": "language"
+    },
+    {
+      "id": "ts-error-handling",
+      "title": "Type-Safe Error Handling",
+      "content": "Use Result type instead of throwing. Custom error classes with type discrimination. Wrap async operations. Never catch and ignore errors silently.",
+      "code": "// Result type\ntype Result<T, E = Error> = { success: true; data: T } | { success: false; error: E };\n\nasync function trySafe<T>(fn: () => Promise<T>): Promise<Result<T>> {\n  try {\n    return { success: true, data: await fn() };\n  } catch (e) {\n    return { success: false, error: e instanceof Error ? e : new Error(String(e)) };\n  }\n}\n\n// Custom error hierarchy\nclass AppError extends Error {\n  constructor(message: string, public code: string, public statusCode: number = 500) {\n    super(message);\n    this.name = 'AppError';\n  }\n}\n\nclass NotFoundError extends AppError {\n  constructor(resource: string) { super(`${resource} not found`, 'NOT_FOUND', 404); }\n}\n\nclass ValidationError extends AppError {\n  constructor(public fields: Record<string, string>) { super('Validation failed', 'VALIDATION', 400); }\n}",
+      "tags": ["typescript", "error-handling", "result-type", "custom-errors"],
+      "category": "language"
+    },
+    {
+      "id": "ts-zod-validation",
+      "title": "Runtime Validation with Zod",
+      "content": "Use Zod for runtime type validation. Define schemas, parse inputs, infer TypeScript types. Works for API inputs, form data, env vars, config files.",
+      "code": "import { z } from 'zod';\n\n// Define schema\nconst UserSchema = z.object({\n  name: z.string().min(2).max(100),\n  email: z.string().email(),\n  age: z.number().int().min(0).max(150).optional(),\n  role: z.enum(['admin', 'user', 'moderator']).default('user'),\n  tags: z.array(z.string()).default([]),\n});\n\n// Infer TypeScript type from schema\ntype User = z.infer<typeof UserSchema>;\n\n// Parse (throws on invalid)\nconst user = UserSchema.parse(inputData);\n\n// Safe parse (returns result)\nconst result = UserSchema.safeParse(inputData);\nif (result.success) {\n  console.log(result.data); // typed as User\n} else {\n  console.error(result.error.flatten());\n}\n\n// Env validation\nconst EnvSchema = z.object({\n  DATABASE_URL: z.string().url(),\n  PORT: z.coerce.number().default(3000),\n  NODE_ENV: z.enum(['development', 'production', 'test']),\n});\nconst env = EnvSchema.parse(process.env);",
+      "tags": ["typescript", "zod", "validation", "schema", "runtime"],
+      "category": "language"
+    }
+  ]
+}

@@ -5,6 +5,7 @@ import { T, brand, accent, muted, bold, green, yellow, red, dim, BOX, sectionHea
 import { CONFIG } from "../core/config.js";
 import { detectContext, contextSummary } from "../core/context.js";
 import { listSessions, type Session } from "../core/session.js";
+import { listDatasets, listCategories, listTags, searchSkills, getSkillStats, fetchGitHubDatasets, type SkillSearchResult } from "../core/skills.js";
 import type { ChatMessage } from "../core/agent.js";
 
 export interface CommandContext {
@@ -77,6 +78,11 @@ export function handleCommand(input: string, ctx: CommandContext): CommandResult
       printConfig();
       return { handled: true };
 
+    case "skills":
+    case "sk":
+      handleSkills(parts.slice(1));
+      return { handled: true };
+
     default:
       console.log(yellow("  ⚠ Unknown command: ") + input + dim("  (try /help)\n"));
       return { handled: true };
@@ -96,6 +102,7 @@ function printHelp(): void {
     ["/compact", "Compact history (save tokens)"],
     ["/history", "Show conversation history"],
     ["/config", "Show configuration"],
+    ["/skills, /sk", "Offline skill datasets (list/search/fetch)"],
     ["/exit, /q", "Exit the CLI"],
     ["Ctrl+C", "Exit"],
   ];
@@ -204,4 +211,95 @@ function formatUptime(start: Date): string {
   const m = Math.floor(s / 60);
   if (m < 60) return `${m}m ${s % 60}s`;
   return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
+function handleSkills(args: string[]): void {
+  const subcmd = args[0]?.toLowerCase();
+
+  if (!subcmd || subcmd === "list") {
+    const datasets = listDatasets();
+    const stats = getSkillStats();
+    console.log(sectionHeader("Offline Skills"));
+    console.log(`  ${bold("Datasets:").padEnd(20)} ${accent(String(stats.datasets))} (${green(String(stats.bundled))} bundled, ${muted(String(stats.downloaded))} downloaded)`);
+    console.log(`  ${bold("Entries:").padEnd(20)} ${accent(String(stats.entries))}`);
+    console.log(`  ${bold("Categories:").padEnd(20)} ${muted(String(stats.categories))}`);
+    console.log(`  ${bold("Tags:").padEnd(20)} ${muted(String(stats.tags))}`);
+    console.log();
+    for (const ds of datasets) {
+      const src = ds.source === "bundled" ? green("bundled") : accent("github");
+      console.log(`  ${accent(ds.name.padEnd(24))} ${muted(ds.category.padEnd(14))} ${dim(String(ds.entries).padStart(3))} entries  ${src}`);
+    }
+    console.log();
+    console.log(dim("  Usage: /skills search <query>  |  /skills fetch  |  /skills categories"));
+    console.log();
+    return;
+  }
+
+  if (subcmd === "search" || subcmd === "s") {
+    const query = args.slice(1).join(" ");
+    if (!query) {
+      console.log(yellow("  ⚠ Usage: /skills search <query>"));
+      console.log(dim("  Example: /skills search react hooks\n"));
+      return;
+    }
+    const results = searchSkills(query, { maxResults: 5 });
+    console.log(sectionHeader(`Skill Search: "${query}"`));
+    if (results.length === 0) {
+      console.log(dim("  No matching skills found.\n"));
+      return;
+    }
+    for (const r of results) {
+      console.log(`  ${accent(r.entry.title)} ${dim(`[${r.dataset}]`)} ${dim(`score:${r.score}`)}`);
+      console.log(`  ${muted(r.entry.content.slice(0, 120))}...`);
+      if (r.entry.code) {
+        const preview = r.entry.code.split("\n").slice(0, 3).join("\n    ");
+        console.log(`    ${dim(preview)}`);
+      }
+      console.log();
+    }
+    return;
+  }
+
+  if (subcmd === "categories" || subcmd === "cats") {
+    const cats = listCategories();
+    console.log(sectionHeader("Skill Categories"));
+    for (const cat of cats) {
+      console.log(`  ${accent(cat)}`);
+    }
+    console.log();
+    return;
+  }
+
+  if (subcmd === "tags") {
+    const tags = listTags().slice(0, 30);
+    console.log(sectionHeader("Top Tags"));
+    for (const t of tags) {
+      console.log(`  ${accent(t.tag.padEnd(24))} ${dim(String(t.count) + " entries")}`);
+    }
+    console.log();
+    return;
+  }
+
+  if (subcmd === "fetch") {
+    const repo = args[1];
+    console.log(dim("  Fetching datasets from GitHub..."));
+    fetchGitHubDatasets(repo).then(({ fetched, errors }) => {
+      if (fetched.length > 0) {
+        console.log(green(`  ✔ Fetched: ${fetched.join(", ")}`));
+      }
+      if (errors.length > 0) {
+        console.log(yellow(`  ⚠ Errors: ${errors.join(", ")}`));
+      }
+      if (fetched.length === 0 && errors.length === 0) {
+        console.log(dim("  No new datasets found."));
+      }
+      console.log();
+    }).catch(e => {
+      console.log(red(`  ✖ Fetch failed: ${(e as Error).message}\n`));
+    });
+    return;
+  }
+
+  console.log(yellow("  ⚠ Unknown skills subcommand: ") + subcmd);
+  console.log(dim("  Available: list, search, categories, tags, fetch\n"));
 }

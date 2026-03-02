@@ -1,0 +1,48 @@
+{
+  "name": "pwa-guide",
+  "description": "Progressive Web App development: service workers, manifest, offline-first, caching strategies, push notifications",
+  "category": "architecture",
+  "version": "1.0.0",
+  "entries": [
+    {
+      "id": "pwa-manifest",
+      "title": "Web App Manifest Configuration",
+      "content": "manifest.json defines app metadata for install prompt. Required fields: name, short_name, start_url, display, icons. Use display: standalone for native feel. Set theme_color and background_color. Include 192x192 and 512x512 icons.",
+      "code": "{\n  \"name\": \"My Awesome App\",\n  \"short_name\": \"AwesomeApp\",\n  \"description\": \"A progressive web application\",\n  \"start_url\": \"/\",\n  \"display\": \"standalone\",\n  \"orientation\": \"portrait\",\n  \"theme_color\": \"#6366f1\",\n  \"background_color\": \"#0f172a\",\n  \"icons\": [\n    { \"src\": \"/icons/icon-192.png\", \"sizes\": \"192x192\", \"type\": \"image/png\" },\n    { \"src\": \"/icons/icon-512.png\", \"sizes\": \"512x512\", \"type\": \"image/png\" },\n    { \"src\": \"/icons/icon-512-maskable.png\", \"sizes\": \"512x512\", \"type\": \"image/png\", \"purpose\": \"maskable\" }\n  ],\n  \"categories\": [\"productivity\"],\n  \"screenshots\": [\n    { \"src\": \"/screenshots/desktop.png\", \"sizes\": \"1280x720\", \"type\": \"image/png\", \"form_factor\": \"wide\" },\n    { \"src\": \"/screenshots/mobile.png\", \"sizes\": \"390x844\", \"type\": \"image/png\", \"form_factor\": \"narrow\" }\n  ]\n}",
+      "tags": ["pwa", "manifest", "installable", "mobile", "icons"],
+      "category": "architecture"
+    },
+    {
+      "id": "pwa-service-worker",
+      "title": "Service Worker with Caching Strategies",
+      "content": "Service worker intercepts network requests. Strategies: Cache-First (static assets), Network-First (API calls), Stale-While-Revalidate (balance), Cache-Only (offline), Network-Only (real-time). Pre-cache critical resources on install.",
+      "code": "// sw.js — Service Worker\nconst CACHE_NAME = 'app-v1';\nconst STATIC_ASSETS = ['/', '/index.html', '/styles.css', '/app.js', '/manifest.json'];\n\n// Install — pre-cache static assets\nself.addEventListener('install', (e) => {\n  e.waitUntil(\n    caches.open(CACHE_NAME).then(cache => cache.addAll(STATIC_ASSETS))\n  );\n  self.skipWaiting();\n});\n\n// Activate — clean old caches\nself.addEventListener('activate', (e) => {\n  e.waitUntil(\n    caches.keys().then(keys => Promise.all(\n      keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))\n    ))\n  );\n  self.clients.claim();\n});\n\n// Fetch — Stale-While-Revalidate for pages, Cache-First for assets\nself.addEventListener('fetch', (e) => {\n  const url = new URL(e.request.url);\n  if (url.pathname.startsWith('/api/')) {\n    // Network-First for API\n    e.respondWith(\n      fetch(e.request).then(res => {\n        const clone = res.clone();\n        caches.open(CACHE_NAME).then(c => c.put(e.request, clone));\n        return res;\n      }).catch(() => caches.match(e.request))\n    );\n  } else {\n    // Cache-First for static assets\n    e.respondWith(\n      caches.match(e.request).then(cached => cached || fetch(e.request))\n    );\n  }\n});",
+      "tags": ["pwa", "service-worker", "caching", "offline", "network"],
+      "category": "architecture"
+    },
+    {
+      "id": "pwa-offline-first",
+      "title": "Offline-First Architecture",
+      "content": "Design for offline from the start. Use IndexedDB for structured data (via idb library). Queue mutations when offline, sync on reconnect. Show offline indicator. Cache API responses with timestamps for freshness.",
+      "code": "// Offline data store with IndexedDB\nimport { openDB } from 'idb';\n\nconst db = await openDB('app-store', 1, {\n  upgrade(db) {\n    db.createObjectStore('items', { keyPath: 'id' });\n    db.createObjectStore('queue', { keyPath: 'id', autoIncrement: true });\n  },\n});\n\n// Save locally + queue for sync\nasync function saveItem(item: Item) {\n  await db.put('items', item);\n  if (!navigator.onLine) {\n    await db.add('queue', { action: 'save', data: item, timestamp: Date.now() });\n  } else {\n    await fetch('/api/items', { method: 'POST', body: JSON.stringify(item) });\n  }\n}\n\n// Sync queue when back online\nwindow.addEventListener('online', async () => {\n  const queue = await db.getAll('queue');\n  for (const op of queue) {\n    await fetch('/api/items', { method: 'POST', body: JSON.stringify(op.data) });\n    await db.delete('queue', op.id);\n  }\n});\n\n// Offline indicator component\nfunction OfflineBanner() {\n  const [online, setOnline] = useState(navigator.onLine);\n  useEffect(() => {\n    const on = () => setOnline(true);\n    const off = () => setOnline(false);\n    window.addEventListener('online', on);\n    window.addEventListener('offline', off);\n    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };\n  }, []);\n  if (online) return null;\n  return <div className=\"fixed top-0 w-full bg-amber-500 text-white text-center py-1 text-sm z-50\">You're offline — changes will sync when connected</div>;\n}",
+      "tags": ["pwa", "offline-first", "indexeddb", "sync", "queue"],
+      "category": "architecture"
+    },
+    {
+      "id": "pwa-app-shell",
+      "title": "App Shell Architecture",
+      "content": "App shell: minimal HTML/CSS/JS for UI skeleton, loaded instantly from cache. Content filled dynamically. Fixed header, bottom nav, scrollable content area. Use skeleton screens as placeholders.",
+      "code": "<!-- App Shell HTML -->\n<div class=\"flex flex-col h-screen\">\n  <!-- Fixed header -->\n  <header class=\"sticky top-0 z-40 bg-indigo-600 text-white px-4 py-3 flex items-center justify-between shadow-lg\">\n    <h1 class=\"text-lg font-bold\">MyApp</h1>\n    <button class=\"w-8 h-8 rounded-full bg-white/20\"><UserIcon /></button>\n  </header>\n  \n  <!-- Scrollable content -->\n  <main class=\"flex-1 overflow-y-auto pb-20\">\n    <!-- Dynamic content loaded here -->\n  </main>\n  \n  <!-- Bottom tab bar -->\n  <nav class=\"fixed bottom-0 w-full bg-white dark:bg-gray-900 border-t flex justify-around py-2 z-40\">\n    <TabButton icon={<HomeIcon />} label=\"Home\" active />\n    <TabButton icon={<SearchIcon />} label=\"Search\" />\n    <TabButton icon={<HeartIcon />} label=\"Saved\" />\n    <TabButton icon={<UserIcon />} label=\"Profile\" />\n  </nav>\n</div>\n\n<!-- Skeleton screen -->\n<div class=\"space-y-4 p-4\">\n  <div class=\"animate-pulse h-48 bg-gray-200 rounded-xl\" />\n  <div class=\"animate-pulse h-4 bg-gray-200 rounded w-3/4\" />\n  <div class=\"animate-pulse h-4 bg-gray-200 rounded w-1/2\" />\n</div>",
+      "tags": ["pwa", "app-shell", "skeleton", "mobile", "navigation"],
+      "category": "architecture"
+    },
+    {
+      "id": "pwa-push-notifications",
+      "title": "Push Notifications Setup",
+      "content": "Request permission, subscribe to push service, send from server. Use VAPID keys for authentication. Handle notification clicks to open/focus app. Store subscription in backend.",
+      "code": "// Request permission and subscribe\nasync function subscribeToPush() {\n  const permission = await Notification.requestPermission();\n  if (permission !== 'granted') return null;\n  \n  const registration = await navigator.serviceWorker.ready;\n  const subscription = await registration.pushManager.subscribe({\n    userVisibleOnly: true,\n    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),\n  });\n  \n  // Send subscription to backend\n  await fetch('/api/push/subscribe', {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify(subscription),\n  });\n  return subscription;\n}\n\n// In service worker — handle push event\nself.addEventListener('push', (e) => {\n  const data = e.data?.json() ?? { title: 'New notification' };\n  e.waitUntil(\n    self.registration.showNotification(data.title, {\n      body: data.body,\n      icon: '/icons/icon-192.png',\n      badge: '/icons/badge-72.png',\n      data: { url: data.url ?? '/' },\n    })\n  );\n});\n\nself.addEventListener('notificationclick', (e) => {\n  e.notification.close();\n  e.waitUntil(clients.openWindow(e.notification.data.url));\n});",
+      "tags": ["pwa", "push-notifications", "vapid", "service-worker"],
+      "category": "architecture"
+    }
+  ]
+}

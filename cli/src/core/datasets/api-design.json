@@ -1,0 +1,48 @@
+{
+  "name": "api-design",
+  "description": "REST API design, authentication, pagination, error handling, rate limiting, and OpenAPI patterns",
+  "category": "backend",
+  "version": "1.0.0",
+  "entries": [
+    {
+      "id": "api-rest-conventions",
+      "title": "REST API Design Conventions",
+      "content": "Resource-oriented URLs: /users, /users/:id, /users/:id/posts. HTTP methods: GET (read), POST (create), PUT (full update), PATCH (partial update), DELETE (remove). Status codes: 200 OK, 201 Created, 204 No Content, 400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found, 409 Conflict, 422 Unprocessable, 429 Too Many, 500 Server Error. Always return JSON. Use plural nouns for resources. Nest for relationships (max 2 levels).",
+      "code": "// Express/Next.js API design\n// GET    /api/users          → list users\n// POST   /api/users          → create user\n// GET    /api/users/:id       → get user\n// PATCH  /api/users/:id       → update user\n// DELETE /api/users/:id       → delete user\n// GET    /api/users/:id/posts → user's posts\n\n// Standard response envelope\ninterface ApiResponse<T> {\n  data: T;\n  meta?: { page: number; perPage: number; total: number };\n  error?: { code: string; message: string; details?: unknown };\n}\n\n// Success: { data: { id: '1', name: 'Jo' } }\n// List:    { data: [...], meta: { page: 1, perPage: 20, total: 100 } }\n// Error:   { error: { code: 'VALIDATION', message: 'Email required', details: { field: 'email' } } }",
+      "tags": ["api", "rest", "design", "conventions", "http"],
+      "category": "backend"
+    },
+    {
+      "id": "api-auth-jwt",
+      "title": "JWT Authentication Pattern",
+      "content": "Issue access token (short-lived, 15min) + refresh token (long-lived, 7d). Store refresh token in httpOnly cookie. Access token in Authorization header. Rotate refresh tokens on use. Revocation via token blacklist or version counter.",
+      "code": "import jwt from 'jsonwebtoken';\n\nconst ACCESS_SECRET = process.env.JWT_ACCESS_SECRET!;\nconst REFRESH_SECRET = process.env.JWT_REFRESH_SECRET!;\n\nfunction generateTokens(userId: string) {\n  const accessToken = jwt.sign({ sub: userId }, ACCESS_SECRET, { expiresIn: '15m' });\n  const refreshToken = jwt.sign({ sub: userId, version: 1 }, REFRESH_SECRET, { expiresIn: '7d' });\n  return { accessToken, refreshToken };\n}\n\n// Middleware\nfunction authenticate(req: Request) {\n  const header = req.headers.get('authorization');\n  if (!header?.startsWith('Bearer ')) throw new UnauthorizedError();\n  try {\n    const payload = jwt.verify(header.slice(7), ACCESS_SECRET);\n    return payload as { sub: string };\n  } catch {\n    throw new UnauthorizedError('Token expired or invalid');\n  }\n}\n\n// Refresh endpoint\nasync function refreshToken(req: Request) {\n  const token = getCookie(req, 'refresh_token');\n  const payload = jwt.verify(token, REFRESH_SECRET) as { sub: string };\n  const tokens = generateTokens(payload.sub);\n  // Set new refresh token as httpOnly cookie\n  return { accessToken: tokens.accessToken };\n}",
+      "tags": ["api", "auth", "jwt", "authentication", "refresh-token"],
+      "category": "backend"
+    },
+    {
+      "id": "api-pagination",
+      "title": "Pagination Patterns (Offset & Cursor)",
+      "content": "Offset pagination: ?page=2&per_page=20. Simple but slow on large datasets (OFFSET scales poorly). Cursor pagination: ?cursor=abc123&limit=20. Use indexed column (id, created_at) as cursor. Return nextCursor in response. Better for real-time data and infinite scroll.",
+      "code": "// Offset pagination\nasync function listUsers(page = 1, perPage = 20) {\n  const offset = (page - 1) * perPage;\n  const [users, [{ count }]] = await Promise.all([\n    db.select().from(usersTable).limit(perPage).offset(offset).orderBy(desc(usersTable.createdAt)),\n    db.select({ count: sql<number>`count(*)` }).from(usersTable),\n  ]);\n  return { data: users, meta: { page, perPage, total: count, pages: Math.ceil(count / perPage) } };\n}\n\n// Cursor pagination (preferred for large datasets)\nasync function listPosts(cursor?: string, limit = 20) {\n  let query = db.select().from(postsTable).orderBy(desc(postsTable.id)).limit(limit + 1);\n  if (cursor) {\n    query = query.where(lt(postsTable.id, cursor));\n  }\n  const results = await query;\n  const hasMore = results.length > limit;\n  const data = hasMore ? results.slice(0, -1) : results;\n  return {\n    data,\n    meta: { nextCursor: hasMore ? data[data.length - 1].id : null, hasMore },\n  };\n}",
+      "tags": ["api", "pagination", "cursor", "offset", "database"],
+      "category": "backend"
+    },
+    {
+      "id": "api-rate-limiting",
+      "title": "Rate Limiting with Sliding Window",
+      "content": "Protect APIs from abuse. Sliding window counter per IP/user. Return 429 Too Many Requests with Retry-After header. Use Redis for distributed rate limiting. Implement in middleware.",
+      "code": "// In-memory rate limiter (use Redis for production)\nconst rateLimits = new Map<string, { count: number; resetAt: number }>();\n\nfunction rateLimit(key: string, maxRequests = 60, windowMs = 60_000): boolean {\n  const now = Date.now();\n  const entry = rateLimits.get(key);\n  \n  if (!entry || now > entry.resetAt) {\n    rateLimits.set(key, { count: 1, resetAt: now + windowMs });\n    return true;\n  }\n  \n  if (entry.count >= maxRequests) return false;\n  entry.count++;\n  return true;\n}\n\n// Middleware\nfunction rateLimitMiddleware(req: NextRequest) {\n  const ip = req.headers.get('x-forwarded-for') ?? 'unknown';\n  if (!rateLimit(ip)) {\n    return NextResponse.json(\n      { error: { code: 'RATE_LIMITED', message: 'Too many requests' } },\n      { status: 429, headers: { 'Retry-After': '60' } }\n    );\n  }\n}",
+      "tags": ["api", "rate-limiting", "security", "middleware", "throttle"],
+      "category": "backend"
+    },
+    {
+      "id": "api-error-handling",
+      "title": "Consistent API Error Handling",
+      "content": "Use a global error handler middleware. Map error types to HTTP status codes. Return structured error objects. Log server errors, don't expose internals. Include request IDs for debugging.",
+      "code": "// Error classes\nclass ApiError extends Error {\n  constructor(public statusCode: number, public code: string, message: string, public details?: unknown) {\n    super(message);\n  }\n}\nclass BadRequest extends ApiError { constructor(msg: string, details?: unknown) { super(400, 'BAD_REQUEST', msg, details); } }\nclass Unauthorized extends ApiError { constructor(msg = 'Unauthorized') { super(401, 'UNAUTHORIZED', msg); } }\nclass NotFound extends ApiError { constructor(resource: string) { super(404, 'NOT_FOUND', `${resource} not found`); } }\n\n// Global handler\nfunction handleApiError(error: unknown): NextResponse {\n  const requestId = crypto.randomUUID();\n  \n  if (error instanceof ApiError) {\n    return NextResponse.json({\n      error: { code: error.code, message: error.message, details: error.details, requestId }\n    }, { status: error.statusCode });\n  }\n  \n  // Unexpected error — log full details, return generic message\n  console.error(`[${requestId}]`, error);\n  return NextResponse.json({\n    error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred', requestId }\n  }, { status: 500 });\n}",
+      "tags": ["api", "error-handling", "middleware", "http-status", "logging"],
+      "category": "backend"
+    }
+  ]
+}

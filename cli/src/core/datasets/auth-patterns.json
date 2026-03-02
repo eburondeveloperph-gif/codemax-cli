@@ -1,0 +1,40 @@
+{
+  "name": "auth-patterns",
+  "description": "Authentication & authorization patterns: OAuth, session-based, RBAC, Firebase Auth, social login",
+  "category": "security",
+  "version": "1.0.0",
+  "entries": [
+    {
+      "id": "auth-firebase",
+      "title": "Firebase Authentication Setup",
+      "content": "Firebase Auth provides email/password, Google, GitHub, Apple sign-in. Client-side: initializeApp, signInWithPopup, onAuthStateChanged. Server-side: verify ID tokens with firebase-admin. Store user profile in Firestore or your DB.",
+      "code": "// Client — Firebase Auth\nimport { initializeApp } from 'firebase/app';\nimport { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from 'firebase/auth';\n\nconst app = initializeApp({ apiKey: '...', authDomain: '...', projectId: '...' });\nconst auth = getAuth(app);\n\n// Google sign-in\nasync function signInWithGoogle() {\n  const provider = new GoogleAuthProvider();\n  const result = await signInWithPopup(auth, provider);\n  const idToken = await result.user.getIdToken();\n  // Send idToken to backend for verification\n  await fetch('/api/auth/login', { method: 'POST', headers: { Authorization: `Bearer ${idToken}` } });\n}\n\n// Auth state listener\nonAuthStateChanged(auth, (user) => {\n  if (user) { console.log('Logged in:', user.email); }\n  else { console.log('Logged out'); }\n});\n\n// Server — verify token\nimport { getAuth } from 'firebase-admin/auth';\nasync function verifyToken(idToken: string) {\n  const decoded = await getAuth().verifyIdToken(idToken);\n  return { uid: decoded.uid, email: decoded.email };\n}",
+      "tags": ["auth", "firebase", "google", "oauth", "social-login"],
+      "category": "security"
+    },
+    {
+      "id": "auth-rbac",
+      "title": "Role-Based Access Control (RBAC)",
+      "content": "Define roles (admin, editor, viewer) with permissions. Check permissions in middleware. Store roles in user record. Use bitfield or array for multiple roles. Hierarchical: admin > editor > viewer.",
+      "code": "// Permission definitions\nconst PERMISSIONS = {\n  admin: ['read', 'write', 'delete', 'manage_users', 'manage_settings'],\n  editor: ['read', 'write', 'delete'],\n  viewer: ['read'],\n} as const;\n\ntype Role = keyof typeof PERMISSIONS;\ntype Permission = (typeof PERMISSIONS)[Role][number];\n\nfunction hasPermission(userRole: Role, required: Permission): boolean {\n  return (PERMISSIONS[userRole] as readonly string[]).includes(required);\n}\n\n// Middleware\nfunction requirePermission(permission: Permission) {\n  return (req: Request) => {\n    const user = getAuthUser(req);\n    if (!user) throw new UnauthorizedError();\n    if (!hasPermission(user.role, permission)) throw new ForbiddenError();\n  };\n}\n\n// Usage in API route\nexport async function DELETE(req: Request) {\n  requirePermission('delete')(req);\n  // ... delete logic\n}",
+      "tags": ["auth", "rbac", "roles", "permissions", "authorization"],
+      "category": "security"
+    },
+    {
+      "id": "auth-session-cookies",
+      "title": "Session-Based Auth with Cookies",
+      "content": "Server creates session on login, stores session ID in httpOnly secure cookie. Session data in memory/Redis/DB. Advantages: revocable, no client-side token storage. Set SameSite=Lax for CSRF protection.",
+      "code": "import { cookies } from 'next/headers';\nimport { randomUUID } from 'crypto';\n\n// Session store (use Redis in production)\nconst sessions = new Map<string, { userId: string; expiresAt: number }>();\n\nasync function createSession(userId: string): Promise<string> {\n  const sessionId = randomUUID();\n  const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days\n  sessions.set(sessionId, { userId, expiresAt });\n  \n  cookies().set('session', sessionId, {\n    httpOnly: true,\n    secure: process.env.NODE_ENV === 'production',\n    sameSite: 'lax',\n    maxAge: 7 * 24 * 60 * 60,\n    path: '/',\n  });\n  return sessionId;\n}\n\nfunction getSession(): { userId: string } | null {\n  const sessionId = cookies().get('session')?.value;\n  if (!sessionId) return null;\n  const session = sessions.get(sessionId);\n  if (!session || session.expiresAt < Date.now()) {\n    sessions.delete(sessionId!);\n    return null;\n  }\n  return { userId: session.userId };\n}",
+      "tags": ["auth", "session", "cookies", "httponly", "server-side"],
+      "category": "security"
+    },
+    {
+      "id": "auth-oauth-flow",
+      "title": "OAuth 2.0 Authorization Code Flow",
+      "content": "Standard OAuth flow: 1) Redirect user to provider's auth URL, 2) User authorizes, provider redirects back with code, 3) Exchange code for tokens on server, 4) Use access token for API calls. Use PKCE for public clients.",
+      "code": "// Step 1: Generate auth URL\nfunction getAuthUrl(provider: 'google' | 'github') {\n  const state = randomUUID(); // CSRF protection\n  const params = new URLSearchParams({\n    client_id: PROVIDERS[provider].clientId,\n    redirect_uri: `${BASE_URL}/api/auth/callback/${provider}`,\n    response_type: 'code',\n    scope: PROVIDERS[provider].scope,\n    state,\n  });\n  return `${PROVIDERS[provider].authUrl}?${params}`;\n}\n\n// Step 2: Handle callback\nexport async function GET(req: NextRequest, { params }: { params: { provider: string } }) {\n  const code = req.nextUrl.searchParams.get('code')!;\n  \n  // Step 3: Exchange code for tokens\n  const tokenRes = await fetch(PROVIDERS[params.provider].tokenUrl, {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },\n    body: JSON.stringify({\n      client_id: PROVIDERS[params.provider].clientId,\n      client_secret: PROVIDERS[params.provider].clientSecret,\n      code,\n      redirect_uri: `${BASE_URL}/api/auth/callback/${params.provider}`,\n    }),\n  });\n  const { access_token } = await tokenRes.json();\n  \n  // Step 4: Get user info\n  const userRes = await fetch(PROVIDERS[params.provider].userUrl, {\n    headers: { Authorization: `Bearer ${access_token}` },\n  });\n  const profile = await userRes.json();\n  \n  // Create/update user + session\n  const user = await upsertUser(profile);\n  await createSession(user.id);\n  return redirect('/dashboard');\n}",
+      "tags": ["auth", "oauth", "authorization-code", "google", "github"],
+      "category": "security"
+    }
+  ]
+}

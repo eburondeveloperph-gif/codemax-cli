@@ -6,6 +6,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSy
 import { execSync } from "child_process";
 import { resolve, dirname, relative } from "path";
 import { createTwoFilesPatch } from "diff";
+import { searchSkills, formatSkillContext, listDatasets, getSkillStats } from "./skills.js";
 
 export interface ToolResult {
   success: boolean;
@@ -129,6 +130,19 @@ export function searchFiles(pattern: string, path: string = ".", glob?: string):
   }
 }
 
+export function querySkillsTool(query: string, category?: string, maxResults?: number): ToolResult {
+  try {
+    const results = searchSkills(query, { category, maxResults: maxResults ?? 5 });
+    if (results.length === 0) {
+      return { success: true, output: `No skill entries found for "${query}".` };
+    }
+    const context = formatSkillContext(results);
+    return { success: true, output: context };
+  } catch (e) {
+    return { success: false, output: `Skill search error: ${(e as Error).message}` };
+  }
+}
+
 /**
  * Execute a tool call by name
  */
@@ -144,6 +158,8 @@ export function executeTool(name: string, args: Record<string, unknown>): ToolRe
       return listFiles(String(args.path ?? "."), Number(args.maxDepth ?? 3));
     case "searchFiles":
       return searchFiles(String(args.pattern ?? ""), String(args.path ?? "."), args.glob as string | undefined);
+    case "querySkills":
+      return querySkillsTool(String(args.query ?? ""), args.category as string | undefined, args.maxResults as number | undefined);
     default:
       return { success: false, output: `Unknown tool: ${name}` };
   }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { searchSkills, formatSkillContext } from "@/lib/skills";
 
 export const runtime = "nodejs";
 
@@ -95,6 +96,10 @@ When building media portals:
 - Show the complete implementation immediately
 - Brief architectural notes only when the design choice is non-obvious
 
+## Offline Skills & Knowledge
+You have access to curated offline skill datasets covering: React patterns, Next.js App Router, Tailwind CSS, TypeScript advanced types, PWA development, REST API design, authentication, database patterns, testing (Vitest/Playwright), security (XSS/CSRF/input validation), deployment (Vercel/Docker), Git workflows, and CSS/UI patterns.
+Use these as reference when building applications — they contain production-ready code patterns and best practices.
+
 You are codemax-v3. You build. You ship. You deliver.`,
 };
 
@@ -106,9 +111,24 @@ export async function POST(req: NextRequest) {
   }
 
   // Prepend system prompt if not already present
-  const enrichedMessages = messages?.[0]?.role === "system"
+  let enrichedMessages = messages?.[0]?.role === "system"
     ? messages
     : [SYSTEM_PROMPT, ...(messages ?? [])];
+
+  // Auto-inject relevant skill context based on latest user message
+  const lastUserMsg = [...(messages ?? [])].reverse().find((m: { role: string }) => m.role === "user");
+  if (lastUserMsg?.content) {
+    const skillResults = searchSkills(lastUserMsg.content, { maxResults: 3 });
+    if (skillResults.length > 0) {
+      const skillContext = formatSkillContext(skillResults);
+      // Append skill context to the system prompt content
+      enrichedMessages = enrichedMessages.map((m: { role: string; content: string }) =>
+        m.role === "system"
+          ? { ...m, content: m.content + skillContext }
+          : m
+      );
+    }
+  }
 
   // Build body — only include model if explicitly provided
   const bodyObj: Record<string, unknown> = { messages: enrichedMessages, stream: stream ?? true };

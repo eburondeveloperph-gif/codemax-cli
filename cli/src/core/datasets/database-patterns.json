@@ -1,0 +1,48 @@
+{
+  "name": "database-patterns",
+  "description": "Database design, PostgreSQL, Prisma/Drizzle ORM, migrations, indexing, and query optimization",
+  "category": "backend",
+  "version": "1.0.0",
+  "entries": [
+    {
+      "id": "db-schema-design",
+      "title": "PostgreSQL Schema Design Best Practices",
+      "content": "Use UUIDs or ULID for primary keys (not sequential ints). Add created_at/updated_at timestamps. Use ENUM types or check constraints for status fields. Index foreign keys and frequently queried columns. Use partial indexes for filtered queries. Add NOT NULL where appropriate.",
+      "code": "CREATE TABLE users (\n  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n  email TEXT UNIQUE NOT NULL,\n  name TEXT NOT NULL,\n  role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'editor', 'user')),\n  avatar_url TEXT,\n  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),\n  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()\n);\n\nCREATE TABLE posts (\n  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n  author_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,\n  title TEXT NOT NULL,\n  content TEXT NOT NULL,\n  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),\n  published_at TIMESTAMPTZ,\n  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),\n  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()\n);\n\nCREATE INDEX idx_posts_author ON posts(author_id);\nCREATE INDEX idx_posts_status ON posts(status) WHERE status = 'published';\nCREATE INDEX idx_posts_published ON posts(published_at DESC) WHERE status = 'published';\n\n-- Auto-update updated_at\nCREATE OR REPLACE FUNCTION update_updated_at()\nRETURNS TRIGGER AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END; $$ LANGUAGE plpgsql;\n\nCREATE TRIGGER trg_users_updated BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at();\nCREATE TRIGGER trg_posts_updated BEFORE UPDATE ON posts FOR EACH ROW EXECUTE FUNCTION update_updated_at();",
+      "tags": ["database", "postgresql", "schema", "design", "indexes"],
+      "category": "backend"
+    },
+    {
+      "id": "db-drizzle-orm",
+      "title": "Drizzle ORM Setup & Patterns",
+      "content": "Drizzle ORM: lightweight, SQL-like TypeScript ORM. Define schema as TypeScript. Type-safe queries. Supports PostgreSQL, MySQL, SQLite. Use drizzle-kit for migrations.",
+      "code": "// schema.ts\nimport { pgTable, uuid, text, timestamp, boolean } from 'drizzle-orm/pg-core';\n\nexport const users = pgTable('users', {\n  id: uuid('id').primaryKey().defaultRandom(),\n  email: text('email').unique().notNull(),\n  name: text('name').notNull(),\n  createdAt: timestamp('created_at').defaultNow().notNull(),\n});\n\nexport const posts = pgTable('posts', {\n  id: uuid('id').primaryKey().defaultRandom(),\n  authorId: uuid('author_id').notNull().references(() => users.id),\n  title: text('title').notNull(),\n  content: text('content').notNull(),\n  published: boolean('published').default(false),\n});\n\n// db.ts\nimport { drizzle } from 'drizzle-orm/node-postgres';\nimport { Pool } from 'pg';\nconst pool = new Pool({ connectionString: process.env.DATABASE_URL });\nexport const db = drizzle(pool, { schema: { users, posts } });\n\n// Queries\nconst allUsers = await db.select().from(users);\nconst userPosts = await db.select().from(posts).where(eq(posts.authorId, userId)).orderBy(desc(posts.createdAt));\nconst newUser = await db.insert(users).values({ email, name }).returning();",
+      "tags": ["database", "drizzle", "orm", "typescript", "postgresql"],
+      "category": "backend"
+    },
+    {
+      "id": "db-prisma-orm",
+      "title": "Prisma ORM Quick Reference",
+      "content": "Prisma: type-safe DB client. Define schema in .prisma file. Generate client. Use transactions for multi-table ops. Include/select for relations. Soft deletes with deleted_at.",
+      "code": "// prisma/schema.prisma\nmodel User {\n  id        String   @id @default(uuid())\n  email     String   @unique\n  name      String\n  posts     Post[]\n  createdAt DateTime @default(now()) @map(\"created_at\")\n  @@map(\"users\")\n}\n\nmodel Post {\n  id        String   @id @default(uuid())\n  title     String\n  content   String\n  published Boolean  @default(false)\n  author    User     @relation(fields: [authorId], references: [id])\n  authorId  String   @map(\"author_id\")\n  @@map(\"posts\")\n}\n\n// Usage\nconst user = await prisma.user.findUnique({\n  where: { email },\n  include: { posts: { where: { published: true }, orderBy: { createdAt: 'desc' } } },\n});\n\n// Transaction\nconst [post, notification] = await prisma.$transaction([\n  prisma.post.create({ data: { title, content, authorId } }),\n  prisma.notification.create({ data: { userId: authorId, message: 'Post created' } }),\n]);",
+      "tags": ["database", "prisma", "orm", "typescript", "postgresql"],
+      "category": "backend"
+    },
+    {
+      "id": "db-migrations",
+      "title": "Database Migration Strategies",
+      "content": "Always use migrations (never manual DDL in production). Forward-only migrations. Each migration has up/down. Test migrations on copy of prod data. Separate schema changes from data changes. Use transactions for DDL when possible.",
+      "code": "// Drizzle Kit migration\n// drizzle.config.ts\nimport type { Config } from 'drizzle-kit';\nexport default {\n  schema: './src/db/schema.ts',\n  out: './drizzle',\n  driver: 'pg',\n  dbCredentials: { connectionString: process.env.DATABASE_URL! },\n} satisfies Config;\n\n// Generate: npx drizzle-kit generate:pg\n// Apply:    npx drizzle-kit push:pg\n// Studio:   npx drizzle-kit studio\n\n// Manual migration pattern\n-- 001_create_users.sql\nBEGIN;\n\nCREATE TABLE IF NOT EXISTS users (\n  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n  email TEXT UNIQUE NOT NULL,\n  created_at TIMESTAMPTZ DEFAULT now()\n);\n\nINSERT INTO schema_migrations (version) VALUES ('001');\n\nCOMMIT;\n\n-- Rollback\n-- DROP TABLE IF EXISTS users;\n-- DELETE FROM schema_migrations WHERE version = '001';",
+      "tags": ["database", "migrations", "drizzle-kit", "prisma-migrate", "schema"],
+      "category": "backend"
+    },
+    {
+      "id": "db-query-optimization",
+      "title": "Query Optimization & Indexing",
+      "content": "Use EXPLAIN ANALYZE to profile queries. Add B-tree indexes for = and range queries. GIN indexes for JSONB and full-text search. Partial indexes for filtered queries. Composite indexes (left-to-right). Avoid SELECT *. Use connection pooling (PgBouncer).",
+      "code": "-- Profile query\nEXPLAIN ANALYZE SELECT * FROM posts WHERE author_id = '...' AND status = 'published' ORDER BY created_at DESC LIMIT 20;\n\n-- Composite index (covers the common query)\nCREATE INDEX idx_posts_author_status_date ON posts(author_id, status, created_at DESC);\n\n-- GIN index for JSONB search\nCREATE INDEX idx_posts_metadata ON posts USING GIN(metadata);\nSELECT * FROM posts WHERE metadata @> '{\"tags\": [\"typescript\"]}';\n\n-- Full-text search\nALTER TABLE posts ADD COLUMN search_vector tsvector\n  GENERATED ALWAYS AS (to_tsvector('english', title || ' ' || content)) STORED;\nCREATE INDEX idx_posts_search ON posts USING GIN(search_vector);\nSELECT * FROM posts WHERE search_vector @@ plainto_tsquery('react hooks');\n\n-- Connection pooling (Next.js)\nimport { Pool } from 'pg';\nconst pool = new Pool({\n  connectionString: process.env.DATABASE_URL,\n  max: 20,\n  idleTimeoutMillis: 30000,\n  connectionTimeoutMillis: 2000,\n});",
+      "tags": ["database", "optimization", "indexes", "explain", "performance"],
+      "category": "backend"
+    }
+  ]
+}

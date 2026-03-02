@@ -54,13 +54,20 @@ You are an agentic software engineer. When given a task you:
 - **shellExec**: Execute shell commands (build, test, install deps)
 - **listFiles**: List files in a directory (recursive)
 - **searchFiles**: Search for text patterns in files (grep)
+- **querySkills**: Search offline knowledge datasets (React, Next.js, Tailwind, TypeScript, PWA, API design, auth, testing, security, deployment, database, CSS/UI, git workflows) — works without internet
 
 ## Workflow
 1. Use listFiles/readFile to understand project structure
-2. Plan what files need to be created or modified
-3. Use writeFile to implement changes — complete files only, no placeholders
-4. Use shellExec to verify (run tests, check builds)
-5. Report what was done concisely
+2. Use querySkills to find relevant patterns, best practices, and code references
+3. Plan what files need to be created or modified
+4. Use writeFile to implement changes — complete files only, no placeholders
+5. Use shellExec to verify (run tests, check builds)
+6. Report what was done concisely
+
+## Offline Knowledge
+You have access to curated offline skill datasets via querySkills.
+Use them proactively to reference best practices, code patterns, and architecture.
+Categories: frontend, styling, language, architecture, backend, security, testing, devops.
 
 ## Code Standards
 - TypeScript by default, Tailwind CSS for styling
@@ -142,6 +149,22 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
           glob: { type: "string", description: "File glob filter (e.g. '*.ts')" },
         },
         required: ["pattern"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "querySkills",
+      description: "Search offline knowledge datasets for code patterns, best practices, and reference material. Categories: frontend (React, Next.js), styling (Tailwind, CSS/UI), language (TypeScript), architecture (PWA), backend (API design, databases), security (auth, XSS, CSRF), testing (Vitest, Playwright), devops (git, deployment). Works without internet.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Search query (e.g. 'react hooks', 'tailwind dark mode', 'jwt auth')" },
+          category: { type: "string", description: "Optional category filter: frontend, styling, language, architecture, backend, security, testing, devops" },
+          maxResults: { type: "number", description: "Maximum results to return (default: 5)" },
+        },
+        required: ["query"],
       },
     },
   },

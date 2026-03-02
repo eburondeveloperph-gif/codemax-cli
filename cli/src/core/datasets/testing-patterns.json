@@ -1,0 +1,48 @@
+{
+  "name": "testing-patterns",
+  "description": "Testing patterns: unit tests, integration tests, mocking, component testing, E2E with Playwright",
+  "category": "testing",
+  "version": "1.0.0",
+  "entries": [
+    {
+      "id": "test-vitest-setup",
+      "title": "Vitest Setup for React/Next.js",
+      "content": "Vitest: fast, Vite-native test runner. Use @testing-library/react for component tests. jsdom environment. Setup file for global mocks. Coverage with v8 or istanbul.",
+      "code": "// vitest.config.ts\nimport { defineConfig } from 'vitest/config';\nimport react from '@vitejs/plugin-react';\n\nexport default defineConfig({\n  plugins: [react()],\n  test: {\n    environment: 'jsdom',\n    globals: true,\n    setupFiles: './src/test/setup.ts',\n    coverage: { provider: 'v8', reporter: ['text', 'html'] },\n    include: ['src/**/*.{test,spec}.{ts,tsx}'],\n  },\n  resolve: { alias: { '@': '/src' } },\n});\n\n// src/test/setup.ts\nimport '@testing-library/jest-dom';\nimport { cleanup } from '@testing-library/react';\nimport { afterEach } from 'vitest';\nafterEach(() => cleanup());\n\n// package.json scripts\n// \"test\": \"vitest\",\n// \"test:run\": \"vitest run\",\n// \"test:coverage\": \"vitest run --coverage\"",
+      "tags": ["testing", "vitest", "react", "setup", "coverage"],
+      "category": "testing"
+    },
+    {
+      "id": "test-component-testing",
+      "title": "React Component Testing Patterns",
+      "content": "Test behavior, not implementation. Render component, interact via user events, assert on visible output. Use screen.getByRole/getByText. Test accessibility. Mock fetch/API calls.",
+      "code": "import { render, screen, waitFor } from '@testing-library/react';\nimport userEvent from '@testing-library/user-event';\nimport { describe, it, expect, vi } from 'vitest';\nimport { LoginForm } from './LoginForm';\n\ndescribe('LoginForm', () => {\n  it('shows validation errors for empty fields', async () => {\n    const user = userEvent.setup();\n    render(<LoginForm onSubmit={vi.fn()} />);\n    \n    await user.click(screen.getByRole('button', { name: /sign in/i }));\n    \n    expect(screen.getByText(/email is required/i)).toBeInTheDocument();\n    expect(screen.getByText(/password is required/i)).toBeInTheDocument();\n  });\n\n  it('calls onSubmit with credentials', async () => {\n    const user = userEvent.setup();\n    const onSubmit = vi.fn();\n    render(<LoginForm onSubmit={onSubmit} />);\n    \n    await user.type(screen.getByLabelText(/email/i), 'test@example.com');\n    await user.type(screen.getByLabelText(/password/i), 'password123');\n    await user.click(screen.getByRole('button', { name: /sign in/i }));\n    \n    expect(onSubmit).toHaveBeenCalledWith({ email: 'test@example.com', password: 'password123' });\n  });\n\n  it('shows loading state during submission', async () => {\n    const user = userEvent.setup();\n    render(<LoginForm onSubmit={() => new Promise(() => {})} />); // never resolves\n    \n    await user.type(screen.getByLabelText(/email/i), 'a@b.com');\n    await user.type(screen.getByLabelText(/password/i), 'pass');\n    await user.click(screen.getByRole('button', { name: /sign in/i }));\n    \n    expect(screen.getByRole('button')).toBeDisabled();\n    expect(screen.getByText(/signing in/i)).toBeInTheDocument();\n  });\n});",
+      "tags": ["testing", "component", "react", "testing-library", "user-events"],
+      "category": "testing"
+    },
+    {
+      "id": "test-api-integration",
+      "title": "API Integration Testing",
+      "content": "Test API routes end-to-end with real HTTP requests. Use supertest or direct fetch against test server. Setup/teardown test database. Test happy paths, error cases, auth, validation.",
+      "code": "import { describe, it, expect, beforeAll, afterAll } from 'vitest';\n\nconst BASE_URL = 'http://localhost:3001';\nlet authToken: string;\n\nbeforeAll(async () => {\n  // Seed test data & get auth token\n  const res = await fetch(`${BASE_URL}/api/auth/login`, {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify({ email: 'test@example.com', password: 'testpass' }),\n  });\n  const data = await res.json();\n  authToken = data.token;\n});\n\ndescribe('POST /api/posts', () => {\n  it('creates a post with valid data', async () => {\n    const res = await fetch(`${BASE_URL}/api/posts`, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },\n      body: JSON.stringify({ title: 'Test Post', content: 'Hello world' }),\n    });\n    expect(res.status).toBe(201);\n    const data = await res.json();\n    expect(data.data).toHaveProperty('id');\n    expect(data.data.title).toBe('Test Post');\n  });\n\n  it('returns 401 without auth', async () => {\n    const res = await fetch(`${BASE_URL}/api/posts`, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify({ title: 'Test', content: 'Hi' }),\n    });\n    expect(res.status).toBe(401);\n  });\n\n  it('returns 400 for missing title', async () => {\n    const res = await fetch(`${BASE_URL}/api/posts`, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },\n      body: JSON.stringify({ content: 'No title' }),\n    });\n    expect(res.status).toBe(400);\n  });\n});",
+      "tags": ["testing", "api", "integration", "http", "auth"],
+      "category": "testing"
+    },
+    {
+      "id": "test-mocking",
+      "title": "Mocking Strategies (vi.mock, vi.fn, MSW)",
+      "content": "vi.fn() for function mocks. vi.mock() for module mocks. vi.spyOn() to watch methods. MSW (Mock Service Worker) for HTTP mocking — intercepts at network level, works in browser and Node.",
+      "code": "import { vi, describe, it, expect } from 'vitest';\n\n// Function mock\nconst mockFetch = vi.fn().mockResolvedValue({ ok: true, json: () => ({ data: [] }) });\n\n// Module mock\nvi.mock('@/lib/db', () => ({\n  db: {\n    select: vi.fn().mockReturnThis(),\n    from: vi.fn().mockReturnThis(),\n    where: vi.fn().mockResolvedValue([{ id: '1', name: 'Test' }]),\n  },\n}));\n\n// Spy on existing method\nconst consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});\n\n// MSW — Mock Service Worker\nimport { setupServer } from 'msw/node';\nimport { http, HttpResponse } from 'msw';\n\nconst server = setupServer(\n  http.get('/api/users', () => {\n    return HttpResponse.json({ data: [{ id: '1', name: 'Alice' }] });\n  }),\n  http.post('/api/users', async ({ request }) => {\n    const body = await request.json();\n    return HttpResponse.json({ data: { id: '2', ...body } }, { status: 201 });\n  }),\n);\n\nbeforeAll(() => server.listen());\nafterEach(() => server.resetHandlers());\nafterAll(() => server.close());",
+      "tags": ["testing", "mocking", "vi-mock", "msw", "spy"],
+      "category": "testing"
+    },
+    {
+      "id": "test-playwright-e2e",
+      "title": "E2E Testing with Playwright",
+      "content": "Playwright: cross-browser E2E testing. Navigate pages, fill forms, click buttons, assert content. Visual regression with screenshots. Run against dev server. Parallel execution.",
+      "code": "import { test, expect } from '@playwright/test';\n\ntest.describe('Authentication flow', () => {\n  test('user can sign up and log in', async ({ page }) => {\n    await page.goto('/signup');\n    await page.fill('[name=\"email\"]', 'new@example.com');\n    await page.fill('[name=\"password\"]', 'StrongPass123!');\n    await page.click('button[type=\"submit\"]');\n    \n    // Should redirect to dashboard\n    await expect(page).toHaveURL('/dashboard');\n    await expect(page.getByText('Welcome')).toBeVisible();\n  });\n\n  test('shows error for invalid credentials', async ({ page }) => {\n    await page.goto('/login');\n    await page.fill('[name=\"email\"]', 'wrong@example.com');\n    await page.fill('[name=\"password\"]', 'wrongpass');\n    await page.click('button[type=\"submit\"]');\n    \n    await expect(page.getByText(/invalid credentials/i)).toBeVisible();\n    await expect(page).toHaveURL('/login');\n  });\n});\n\n// playwright.config.ts\nimport { defineConfig } from '@playwright/test';\nexport default defineConfig({\n  testDir: './e2e',\n  fullyParallel: true,\n  webServer: { command: 'npm run dev', port: 3000, reuseExistingServer: true },\n  use: { baseURL: 'http://localhost:3000', screenshot: 'only-on-failure' },\n});",
+      "tags": ["testing", "playwright", "e2e", "browser", "automation"],
+      "category": "testing"
+    }
+  ]
+}

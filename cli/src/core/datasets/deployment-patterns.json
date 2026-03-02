@@ -1,0 +1,40 @@
+{
+  "name": "deployment-patterns",
+  "description": "Deployment patterns: Vercel, Docker, environment configuration, monitoring, logging, and production readiness",
+  "category": "devops",
+  "version": "1.0.0",
+  "entries": [
+    {
+      "id": "deploy-vercel",
+      "title": "Vercel Deployment Configuration",
+      "content": "Vercel auto-detects Next.js. Configure via vercel.json or project settings. Environment variables in dashboard. Serverless functions in app/api/. Edge functions with runtime: edge. Preview deployments for PRs.",
+      "code": "// vercel.json\n{\n  \"framework\": \"nextjs\",\n  \"regions\": [\"iad1\"],\n  \"functions\": {\n    \"app/api/**/*.ts\": { \"maxDuration\": 60 }\n  },\n  \"headers\": [{\n    \"source\": \"/api/(.*)\",\n    \"headers\": [\n      { \"key\": \"Access-Control-Allow-Origin\", \"value\": \"*\" }\n    ]\n  }]\n}\n\n// next.config.js — Vercel-specific\nmodule.exports = {\n  serverExternalPackages: ['pg', 'sharp'],\n  images: { remotePatterns: [{ hostname: '*.example.com' }] },\n};\n\n// Environment variables (set in Vercel dashboard)\n// DATABASE_URL=postgres://...\n// NEXT_PUBLIC_APP_URL=https://myapp.vercel.app\n\n// CLI deploy\n// vercel --prod",
+      "tags": ["deployment", "vercel", "nextjs", "serverless", "configuration"],
+      "category": "devops"
+    },
+    {
+      "id": "deploy-docker",
+      "title": "Docker Multi-Stage Build for Next.js",
+      "content": "Multi-stage build: deps stage (install), build stage (compile), runner stage (minimal production image). Use standalone output for smaller images. Set NODE_ENV=production.",
+      "code": "# Dockerfile\nFROM node:20-alpine AS deps\nWORKDIR /app\nCOPY package.json package-lock.json ./\nRUN npm ci --production=false\n\nFROM node:20-alpine AS builder\nWORKDIR /app\nCOPY --from=deps /app/node_modules ./node_modules\nCOPY . .\nENV NEXT_TELEMETRY_DISABLED=1\nRUN npm run build\n\nFROM node:20-alpine AS runner\nWORKDIR /app\nENV NODE_ENV=production\nENV NEXT_TELEMETRY_DISABLED=1\n\nRUN addgroup --system --gid 1001 nodejs\nRUN adduser --system --uid 1001 nextjs\n\nCOPY --from=builder /app/public ./public\nCOPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./\nCOPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static\n\nUSER nextjs\nEXPOSE 3000\nENV PORT=3000\nCMD [\"node\", \"server.js\"]\n\n# next.config.js — enable standalone output\n// output: 'standalone'\n\n# Build & run\n# docker build -t myapp .\n# docker run -p 3000:3000 --env-file .env.production myapp",
+      "tags": ["deployment", "docker", "multi-stage", "nextjs", "production"],
+      "category": "devops"
+    },
+    {
+      "id": "deploy-health-checks",
+      "title": "Health Check & Monitoring Endpoints",
+      "content": "Create /api/health endpoint for load balancers and monitoring. Check DB connectivity, external services. Return status, version, uptime. Use for Kubernetes liveness/readiness probes.",
+      "code": "// app/api/health/route.ts\nimport { NextResponse } from 'next/server';\n\nexport async function GET() {\n  const checks: Record<string, 'ok' | 'error'> = {};\n  let healthy = true;\n\n  // Database check\n  try {\n    await pool.query('SELECT 1');\n    checks.database = 'ok';\n  } catch {\n    checks.database = 'error';\n    healthy = false;\n  }\n\n  // External API check\n  try {\n    const res = await fetch('https://api.example.com/ping', { signal: AbortSignal.timeout(3000) });\n    checks.externalApi = res.ok ? 'ok' : 'error';\n  } catch {\n    checks.externalApi = 'error';\n  }\n\n  return NextResponse.json({\n    status: healthy ? 'healthy' : 'degraded',\n    version: process.env.APP_VERSION ?? '1.0.0',\n    uptime: process.uptime(),\n    checks,\n    timestamp: new Date().toISOString(),\n  }, { status: healthy ? 200 : 503 });\n}",
+      "tags": ["deployment", "health-check", "monitoring", "kubernetes", "production"],
+      "category": "devops"
+    },
+    {
+      "id": "deploy-logging",
+      "title": "Structured Logging for Production",
+      "content": "Use structured JSON logging in production. Include: timestamp, level, message, requestId, userId. Use correlation IDs across services. Log to stdout (container-friendly). Avoid console.log in production.",
+      "code": "// lib/logger.ts\ntype LogLevel = 'debug' | 'info' | 'warn' | 'error';\n\nconst LOG_LEVELS: Record<LogLevel, number> = { debug: 0, info: 1, warn: 2, error: 3 };\nconst MIN_LEVEL = LOG_LEVELS[(process.env.LOG_LEVEL as LogLevel) ?? 'info'];\n\nfunction log(level: LogLevel, message: string, meta?: Record<string, unknown>) {\n  if (LOG_LEVELS[level] < MIN_LEVEL) return;\n  \n  const entry = {\n    timestamp: new Date().toISOString(),\n    level,\n    message,\n    ...meta,\n  };\n  \n  if (process.env.NODE_ENV === 'production') {\n    console[level === 'error' ? 'error' : 'log'](JSON.stringify(entry));\n  } else {\n    console[level === 'error' ? 'error' : 'log'](`[${level.toUpperCase()}] ${message}`, meta ?? '');\n  }\n}\n\nexport const logger = {\n  debug: (msg: string, meta?: Record<string, unknown>) => log('debug', msg, meta),\n  info: (msg: string, meta?: Record<string, unknown>) => log('info', msg, meta),\n  warn: (msg: string, meta?: Record<string, unknown>) => log('warn', msg, meta),\n  error: (msg: string, meta?: Record<string, unknown>) => log('error', msg, meta),\n};",
+      "tags": ["deployment", "logging", "structured", "production", "monitoring"],
+      "category": "devops"
+    }
+  ]
+}

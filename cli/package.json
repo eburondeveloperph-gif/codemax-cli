@@ -10,7 +10,7 @@
     "eburon-codemax-serve": "./dist/server.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp -r src/core/datasets dist/core/",
     "start": "node dist/cli.js",
     "chat": "node dist/cli.js chat",
     "tui": "node dist/cli.js tui",
