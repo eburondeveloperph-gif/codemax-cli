@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, KeyboardEvent } from "react";
+import { useEffect, useRef, useState, KeyboardEvent } from "react";
 import {
   Plus, MessageSquare, Trash2, Cpu, Send, Square,
   Wifi, Radio, Loader2, CheckCircle, XCircle, ChevronDown,
@@ -84,6 +84,11 @@ export default function ChatSidebar({
 
   const messages = activeConv?.messages ?? [];
 
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length, isStreaming]);
+
   return (
     <div className="flex flex-col h-full bg-[#0a0a0a] border-r border-white/[0.06]">
       {/* ── Header ── */}
@@ -109,14 +114,16 @@ export default function ChatSidebar({
         <button
           onClick={() => setEndpointOpen(v => !v)}
           className={`w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all border ${
-            activeEndpoint
-              ? "bg-green-950/40 border-green-800/40 text-green-400"
-              : "bg-white/[0.04] border-white/[0.06] text-gray-500"
+            isDetecting
+              ? "bg-yellow-950/30 border-yellow-800/30 text-yellow-400"
+              : activeEndpoint
+                ? "bg-green-950/40 border-green-800/40 text-green-400"
+                : "bg-white/[0.04] border-white/[0.06] text-gray-500"
           }`}
         >
-          <Wifi size={10} className="shrink-0" />
+          {isDetecting ? <Loader2 size={10} className="shrink-0 animate-spin" /> : <Wifi size={10} className="shrink-0" />}
           <span className="flex-1 truncate text-left">
-            {activeEndpoint ? activeEndpoint.name : "No CLI connected"}
+            {isDetecting ? "Detecting endpoints…" : activeEndpoint ? activeEndpoint.name : "No CLI connected"}
           </span>
           <ChevronDown size={10} className={`transition-transform ${endpointOpen ? "rotate-180" : ""}`} />
         </button>
@@ -180,7 +187,7 @@ export default function ChatSidebar({
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-2">
             <p className="text-[11px] text-gray-600">
-              {activeEndpoint ? "Ask anything. Generate apps, debug code, explain concepts." : "Connect a CLI endpoint to start."}
+              {isDetecting ? "Scanning for local AI endpoints…" : activeEndpoint ? "Ask anything. Generate apps, debug code, explain concepts." : "Connect a CLI endpoint to start."}
             </p>
             {activeEndpoint && (
               <div className="grid grid-cols-1 gap-1.5 w-full">
@@ -219,7 +226,7 @@ export default function ChatSidebar({
             }}
             rows={1}
             disabled={!activeEndpoint || isStreaming}
-            placeholder={activeEndpoint ? "Describe what to build…" : "Connect a CLI first"}
+            placeholder={isDetecting ? "Scanning endpoints…" : activeEndpoint ? "Describe what to build…" : "Connect a CLI first"}
             className="flex-1 bg-transparent text-[12px] text-gray-200 placeholder-gray-600 resize-none outline-none leading-relaxed max-h-40"
           />
           {isStreaming ? (

@@ -66,40 +66,43 @@ export async function detectCLIEndpoints(): Promise<CLIEndpoint[]> {
     });
   }
 
-  // Well-known local ports — only add if confirmed to be an LLM runtime
-  for (const port of DEFAULT_PORTS) {
-    const { version, model } = await probeVersion(port);
-    if (model !== undefined) {
-      // Known LLM runtime confirmed via version probe
-      const chatPath = port === 1234 ? "/v1/chat/completions" : "/api/chat";
-      detected.push({
-        id: `local-${port}`,
-        name: port === 3333
-          ? `Eburon Codemax CLI :${port}${model ? ` — ${model}` : ""}`
-          : `Eburon Model (maximus-cli) :${port}${model ? ` — ${model}` : ""}`,
-        url: `http://localhost:${port}${chatPath}`,
-        status: "online",
-        type: "http",
-        version,
-        model,
-        lastChecked: new Date(),
-      });
-    } else {
-      // Unknown port — probe for LLM chat paths with a POST to avoid false positives
+  // Probe all ports in parallel for speed
+  const results = await Promise.all(
+    DEFAULT_PORTS.map(async (port) => {
+      const { version, model } = await probeVersion(port);
+      if (model !== undefined) {
+        const chatPath = port === 1234 ? "/v1/chat/completions" : "/api/chat";
+        return {
+          id: `local-${port}`,
+          name: port === 3333
+            ? `Eburon Codemax CLI :${port}${model ? ` — ${model}` : ""}`
+            : `Eburon Model (maximus-cli) :${port}${model ? ` — ${model}` : ""}`,
+          url: `http://localhost:${port}${chatPath}`,
+          status: "online" as const,
+          type: "http" as const,
+          version,
+          model,
+          lastChecked: new Date(),
+        };
+      }
+      // Unknown port — probe for LLM chat paths
       const confirmed = await probeChatEndpoint(port);
       if (confirmed) {
-        detected.push({
+        return {
           id: `local-${port}`,
           name: `Eburon Model (maximus-cli) :${port}`,
           url: confirmed,
-          status: "online",
-          type: "http",
+          status: "online" as const,
+          type: "http" as const,
           lastChecked: new Date(),
-        });
+        };
       }
-    }
-  }
+      return null;
+    })
+  );
 
+  const filtered = results.filter((r) => r !== null) as CLIEndpoint[];
+  detected.push(...filtered);
   return detected;
 }
 
@@ -110,7 +113,7 @@ async function probeChatEndpoint(port: number): Promise<string | null> {
     const url = `http://localhost:${port}${path}`;
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 2000);
+      const timeout = setTimeout(() => controller.abort(), 1200);
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -118,11 +121,8 @@ async function probeChatEndpoint(port: number): Promise<string | null> {
         signal: controller.signal,
       });
       clearTimeout(timeout);
-      // 400/422 = bad request but server understood the LLM payload shape
-      // 200/201 = success
       if (res.ok || res.status === 400 || res.status === 422) {
         const text = await res.text().catch(() => "");
-        // Must look like JSON from an LLM server, not an HTML page
         if (text.trim().startsWith("{") || text.trim().startsWith("[")) {
           return url;
         }
@@ -137,7 +137,7 @@ async function probeVersion(port: number): Promise<{ version?: string; model?: s
   if (!probe) return {};
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2000);
+    const timeout = setTimeout(() => controller.abort(), 1200);
     const res = await fetch(`http://localhost:${port}${probe.path}`, {
       signal: controller.signal,
     });

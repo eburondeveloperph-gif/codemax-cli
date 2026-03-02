@@ -294,7 +294,7 @@ export default function CodePanel({ files, streamingContent, isStreaming, active
       )}
 
       {/* ── Generation status (continuous background indicator) ── */}
-      {(isStreaming || genStage === "done") && (
+      {isStreaming && (
         <CodeGenerationStatus
           isActive={isStreaming}
           stage={genStage as "thinking" | "generating" | "done"}
@@ -327,9 +327,19 @@ function PreviewFrame({ url, device }: { url: string; device: Device }) {
 
 function EmptyCode() {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center p-8">
-      <div className="w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center"><Code2 size={24} className="text-gray-700" /></div>
-      <div><p className="text-sm font-medium text-gray-500">No code yet</p><p className="text-xs text-gray-700 mt-1">Ask eburonmax/eburonmax/codemax-v3 to generate an app or component</p></div>
+    <div className="flex-1 flex flex-col items-center justify-center gap-5 text-center p-8">
+      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500/10 to-cyan-700/5 border border-cyan-500/10 flex items-center justify-center">
+        <img src="https://eburon.ai/icon-eburon.svg" alt="Eburon" className="w-8 h-8 opacity-60" />
+      </div>
+      <div className="space-y-1.5">
+        <p className="text-sm font-medium text-gray-400">Eburon Codemax</p>
+        <p className="text-xs text-gray-600 max-w-xs">Describe what you want to build and the AI will generate production-ready code</p>
+      </div>
+      <div className="flex flex-wrap justify-center gap-2 max-w-md">
+        {["React App", "REST API", "Dashboard", "Landing Page"].map((t) => (
+          <span key={t} className="px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/[0.06] text-[10px] text-gray-600">{t}</span>
+        ))}
+      </div>
     </div>
   );
 }
