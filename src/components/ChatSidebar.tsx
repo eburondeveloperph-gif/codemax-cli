@@ -191,7 +191,11 @@ export default function ChatSidebar({
             </p>
             {activeEndpoint && (
               <div className="grid grid-cols-1 gap-1.5 w-full">
-                {["Generate a React todo app", "Build a REST API", "Debug my code", "Explain a concept"].map(s => (
+                {[
+                  "Create a modern landing page with hero, features, pricing and footer sections",
+                  "Create a PWA mobile app for an Online Course platform with lessons, progress tracking and certificates",
+                  "Create a Movie Site Portal with search, trailers, ratings and watchlist features",
+                ].map(s => (
                   <button key={s} onClick={() => onSend(s)} disabled={isStreaming}
                     className="text-left px-2.5 py-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.07] text-[11px] text-gray-400 hover:text-gray-200 border border-white/[0.05] transition-all disabled:opacity-40">
                     {s}

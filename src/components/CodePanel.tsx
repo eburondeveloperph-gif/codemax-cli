@@ -336,7 +336,7 @@ function EmptyCode() {
         <p className="text-xs text-gray-600 max-w-xs">Describe what you want to build and the AI will generate production-ready code</p>
       </div>
       <div className="flex flex-wrap justify-center gap-2 max-w-md">
-        {["React App", "REST API", "Dashboard", "Landing Page"].map((t) => (
+        {["Landing Page", "PWA Mobile App", "Movie Portal", "Dashboard"].map((t) => (
           <span key={t} className="px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/[0.06] text-[10px] text-gray-600">{t}</span>
         ))}
       </div>
