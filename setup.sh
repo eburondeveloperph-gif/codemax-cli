@@ -123,7 +123,14 @@ exec node "$CLI_ENTRY" "\$@"
 WRAPPER
   chmod +x "$INSTALL_DIR/eburon-codemax"
 
-  ok "Global commands installed: codemax  /  eburon-codemax"
+  # Also create `eburon` alias (primary command)
+  cat > "$INSTALL_DIR/eburon" << WRAPPER
+#!/usr/bin/env bash
+exec node "$CLI_ENTRY" "\$@"
+WRAPPER
+  chmod +x "$INSTALL_DIR/eburon"
+
+  ok "Global commands installed: eburon  /  codemax  /  eburon-codemax"
 
   # Warn if the install dir isn't in PATH
   if ! echo "$PATH" | grep -q "$INSTALL_DIR"; then
@@ -159,9 +166,12 @@ echo ""
 echo -e "${VIOLET}${BOLD}  ╭──────────────────────────────────────────────────╮${RESET}"
 echo -e "${VIOLET}${BOLD}  │  ✅  Setup complete!                              │${RESET}"
 echo -e "${VIOLET}${BOLD}  │                                                  │${RESET}"
-echo -e "${VIOLET}${BOLD}  │  Start anytime with:  codemax start              │${RESET}"
-echo -e "${VIOLET}${BOLD}  │  Or:  eburon-codemax start                       │${RESET}"
+echo -e "${VIOLET}${BOLD}  │  Modes:                                          │${RESET}"
+echo -e "${VIOLET}${BOLD}  │    eburon chat     Interactive REPL (Codex-style) │${RESET}"
+echo -e "${VIOLET}${BOLD}  │    eburon tui      Terminal UI (OpenCode-style)   │${RESET}"
+echo -e "${VIOLET}${BOLD}  │    eburon start    Web app + CLI server (v0)      │${RESET}"
+echo -e "${VIOLET}${BOLD}  │    eburon [prompt]  Single-shot generation        │${RESET}"
 echo -e "${VIOLET}${BOLD}  ╰──────────────────────────────────────────────────╯${RESET}"
 echo ""
 
-exec node "$APP_DIR/cli/dist/cli.js" start
+exec node "$APP_DIR/cli/dist/cli.js" chat

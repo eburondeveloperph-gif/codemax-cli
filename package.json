@@ -16,6 +16,8 @@
     "maximus-cli:build": "node ./bin/maximus-cli.js run build",
     "maximus-cli:install": "node ./bin/maximus-cli.js install",
     "cli": "node cli/dist/cli.js",
+    "cli:chat": "node cli/dist/cli.js chat",
+    "cli:tui": "node cli/dist/cli.js tui",
     "cli:serve": "node cli/dist/server.js",
     "cli:build": "cd cli && npm run build",
     "start:codemax": "node cli/dist/cli.js start",

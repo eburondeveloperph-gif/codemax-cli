@@ -1,24 +1,32 @@
 {
-  "name": "@eburon/codemax-cli",
-  "version": "1.0.0",
-  "description": "Eburon Codemax CLI — autonomous coding agent powered by codemax-v3 via opencode",
+  "name": "@eburon/copilot-cli",
+  "version": "2.0.0",
+  "description": "Eburon Copilot CLI — terminal-interactive AI coding agent with REPL, TUI, and Web modes",
   "type": "module",
   "bin": {
+    "eburon": "./dist/cli.js",
+    "eburon-copilot": "./dist/cli.js",
     "eburon-codemax": "./dist/cli.js",
     "eburon-codemax-serve": "./dist/server.js"
   },
   "scripts": {
     "build": "tsc",
     "start": "node dist/cli.js",
+    "chat": "node dist/cli.js chat",
+    "tui": "node dist/cli.js tui",
     "serve": "node dist/server.js",
     "dev:cli": "npx ts-node --esm src/cli.ts",
     "dev:server": "npx ts-node --esm src/server.ts",
     "postinstall": "npm run build && node scripts/postinstall.js"
   },
   "dependencies": {
-    "chalk": "^5.3.0"
+    "blessed": "^0.1.81",
+    "chalk": "^5.3.0",
+    "diff": "^8.0.3"
   },
   "devDependencies": {
+    "@types/blessed": "^0.1.27",
+    "@types/diff": "^7.0.2",
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0"
   },
