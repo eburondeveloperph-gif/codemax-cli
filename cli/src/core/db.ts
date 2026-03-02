@@ -10,6 +10,7 @@ const poolConfig: PoolConfig = {
   connectionString: process.env.DATABASE_URL ?? "postgresql://master@localhost:5432/eburon_copilot",
   max: 3,
   idleTimeoutMillis: 10000,
+  ssl: { rejectUnauthorized: false },
 };
 
 let _pool: Pool | null = null;

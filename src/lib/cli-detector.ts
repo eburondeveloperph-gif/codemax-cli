@@ -3,6 +3,22 @@ import { execSync } from "child_process";
 
 const DEFAULT_PORTS = [3333, 3001, 4000, 5000, 8000, 8080, 8888, 11434, 1234];
 
+/** Parse OLLAMA_URL and extract unique host+port combos to probe */
+function getExtraHosts(): { host: string; port: number }[] {
+  const ollamaUrl = process.env.OLLAMA_URL;
+  if (!ollamaUrl) return [];
+  try {
+    const u = new URL(ollamaUrl);
+    const host = u.hostname;
+    const port = parseInt(u.port) || (u.protocol === "https:" ? 443 : 80);
+    // Skip localhost variants — they're already probed via DEFAULT_PORTS
+    if (host === "localhost" || host === "127.0.0.1" || host === "::1") return [];
+    return [{ host, port }];
+  } catch {
+    return [];
+  }
+}
+
 /** Preferred model names — first match wins */
 const PREFERRED_MODELS = [
   "eburonmax/codemax-v3",
@@ -135,7 +151,7 @@ export async function detectCLIEndpoints(): Promise<CLIEndpoint[]> {
     });
   }
 
-  // Probe all ports in parallel for speed
+  // Probe all localhost ports in parallel
   const results = await Promise.all(
     DEFAULT_PORTS.map(async (port) => {
       const { version, model } = await probeVersion(port);
@@ -172,6 +188,37 @@ export async function detectCLIEndpoints(): Promise<CLIEndpoint[]> {
 
   const filtered = results.filter((r) => r !== null) as CLIEndpoint[];
   detected.push(...filtered);
+
+  // ── Probe remote OLLAMA_URL hosts (if configured, not localhost) ──
+  const extraHosts = getExtraHosts();
+  for (const { host, port } of extraHosts) {
+    const baseUrl = `http://${host}:${port}`;
+    // Check if already detected (unlikely for remote, but guard)
+    if (detected.some((d) => d.url.includes(host))) continue;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(`${baseUrl}/api/tags`, { signal: controller.signal });
+      clearTimeout(timer);
+      if (res.ok) {
+        const data = await res.json();
+        const models: { name: string }[] = data.models ?? [];
+        const preferred = models.find((m) =>
+          PREFERRED_MODELS.some((p) => m.name === p || m.name.startsWith("eburonmax/codemax-v3"))
+        );
+        const model = (preferred ?? models[0])?.name;
+        detected.push({
+          id: `remote-${host}-${port}`,
+          name: `Ollama @ ${host}:${port}${model ? ` — ${model}` : ""}`,
+          url: `${baseUrl}/api/chat`,
+          status: "online",
+          type: "http",
+          model,
+          lastChecked: new Date(),
+        });
+      }
+    } catch { /* remote host not reachable */ }
+  }
 
   // ── Detect external AI CLI tools running as processes ──
   const externalCLIs = await detectExternalCLIs();

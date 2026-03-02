@@ -106,9 +106,9 @@ You are codemax-v3. You build. You ship. You deliver.`,
 export async function POST(req: NextRequest) {
   const { messages, endpointUrl, stream, model } = await req.json();
 
-  if (!endpointUrl) {
-    return NextResponse.json({ error: "No endpoint URL provided" }, { status: 400 });
-  }
+  // Use provided endpoint, or fall back to OLLAMA_URL env var
+  const ollamaBase = (process.env.OLLAMA_URL ?? "http://localhost:11434").replace(/\/+$/, "");
+  const targetUrl = endpointUrl || `${ollamaBase}/api/chat`;
 
   // Prepend system prompt if not already present
   let enrichedMessages = messages?.[0]?.role === "system"
@@ -121,7 +121,6 @@ export async function POST(req: NextRequest) {
     const skillResults = searchSkills(lastUserMsg.content, { maxResults: 3 });
     if (skillResults.length > 0) {
       const skillContext = formatSkillContext(skillResults);
-      // Append skill context to the system prompt content
       enrichedMessages = enrichedMessages.map((m: { role: string; content: string }) =>
         m.role === "system"
           ? { ...m, content: m.content + skillContext }
@@ -135,7 +134,7 @@ export async function POST(req: NextRequest) {
   if (model) bodyObj.model = model;
 
   try {
-    const upstream = await fetch(endpointUrl, {
+    const upstream = await fetch(targetUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(bodyObj),
@@ -144,13 +143,12 @@ export async function POST(req: NextRequest) {
     if (!upstream.ok) {
       const text = await upstream.text();
       return NextResponse.json(
-        { error: `Upstream error: ${upstream.status}`, detail: text },
+        { error: `Upstream error: ${upstream.status}`, detail: text, ollamaUrl: targetUrl },
         { status: upstream.status }
       );
     }
 
     if (stream && upstream.body) {
-      // Proxy the SSE stream directly to the client
       return new NextResponse(upstream.body, {
         headers: {
           "Content-Type": "text/event-stream",
@@ -165,6 +163,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(json);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: message, hint: `Check if Ollama is reachable at ${targetUrl}` },
+      { status: 502 }
+    );
   }
 }

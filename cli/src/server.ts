@@ -34,6 +34,31 @@ const server = http.createServer(async (req, res) => {
 
   // Health / detection endpoint
   if (url.pathname === "/health" || url.pathname === "/api/health") {
+    // Probe Ollama to include live status
+    let ollamaOk = false;
+    let models: string[] = [];
+    let version: string | undefined;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3000);
+      const tagsRes = await fetch(`${OLLAMA_URL}/api/tags`, { signal: controller.signal });
+      clearTimeout(timer);
+      if (tagsRes.ok) {
+        ollamaOk = true;
+        const data = await tagsRes.json();
+        models = (data.models ?? []).map((m: { name: string }) => m.name);
+      }
+    } catch { /* not reachable */ }
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 2000);
+      const vRes = await fetch(`${OLLAMA_URL}/api/version`, { signal: controller.signal });
+      clearTimeout(timer);
+      if (vRes.ok) { const d = await vRes.json(); version = d.version; }
+    } catch { /* optional */ }
+
+    const modelReady = models.some((m) => m === MODEL || m.startsWith("eburonmax/codemax-v3"));
+
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(
       JSON.stringify({
@@ -42,6 +67,13 @@ const server = http.createServer(async (req, res) => {
         provider: "ollama",
         name: "Eburon Codemax CLI",
         version: "2.0.0",
+        ollama: {
+          url: OLLAMA_URL,
+          reachable: ollamaOk,
+          version,
+          models,
+          modelReady,
+        },
       })
     );
     return;

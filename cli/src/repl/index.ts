@@ -42,21 +42,48 @@ export async function startRepl(): Promise<void> {
   // Print banner
   console.log(banner());
 
-  // Check Ollama
+  // Check Ollama (respects OLLAMA_URL — any host/IP)
   const spinner = new Spinner();
-  spinner.start("Connecting to Ollama...");
+  spinner.start(`Connecting to Ollama at ${CONFIG.ollamaUrl}...`);
   const ollamaStatus = await checkOllama();
   spinner.stop();
 
   if (!ollamaStatus.ok) {
     console.log(red("  ✖ Cannot connect to Ollama: ") + dim(ollamaStatus.error ?? "unknown error"));
-    console.log(dim("    Start Ollama with: ") + accent("ollama serve"));
-    console.log(dim("    Or set OLLAMA_URL environment variable\n"));
+    console.log(dim("    URL: ") + accent(CONFIG.ollamaUrl));
+    const isRemote = !CONFIG.ollamaUrl.includes("localhost") && !CONFIG.ollamaUrl.includes("127.0.0.1");
+    if (isRemote) {
+      console.log(dim("    Ensure Ollama is running on the remote host with: ") + accent("OLLAMA_HOST=0.0.0.0 ollama serve"));
+    } else {
+      console.log(dim("    Start Ollama with: ") + accent("ollama serve"));
+    }
+    console.log(dim("    Or set OLLAMA_URL to point to a running instance\n"));
     process.exit(1);
   }
 
-  const hasModel = ollamaStatus.models.some((m) => m.includes("codemax-v3"));
-  console.log(green("  ✔ ") + dim("Ollama connected") + (hasModel ? green(" · model ready") : yellow(" · model may need pulling")));
+  const modelReady = ollamaStatus.modelReady;
+  console.log(green("  ✔ ") + dim(`Ollama connected at ${CONFIG.ollamaUrl}`) + (ollamaStatus.version ? dim(` v${ollamaStatus.version}`) : ""));
+
+  if (modelReady) {
+    console.log(green("  ✔ ") + dim(`Model ${CONFIG.model} ready`));
+  } else {
+    console.log(yellow("  ⚠ ") + dim(`Model ${CONFIG.model} not found — pulling...`));
+    try {
+      const { pullModelStream } = await import("../core/agent.js");
+      let lastStatus = "";
+      for await (const event of pullModelStream()) {
+        if (event.status && event.status !== lastStatus) {
+          process.stdout.write(dim(`    ${event.status}\r`));
+          lastStatus = event.status;
+        }
+      }
+      console.log(green("  ✔ ") + dim("Model pulled successfully"));
+    } catch (err) {
+      console.log(red("  ✖ ") + dim(`Model pull failed: ${(err as Error).message}`));
+      console.log(dim("    Pull manually: ") + accent(`ollama pull ${CONFIG.model}`));
+      console.log(dim("    Continuing without model — responses may fail\n"));
+    }
+  }
 
   // Detect project context
   const ctx = detectContext();

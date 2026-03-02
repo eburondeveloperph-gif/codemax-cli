@@ -297,16 +297,95 @@ export async function chat(messages: ChatMessage[]): Promise<string> {
 }
 
 /**
- * Check if Ollama is reachable and model is available
+ * Check if Ollama is reachable at the configured OLLAMA_URL (any host/IP)
+ * and whether the target model is available.
  */
-export async function checkOllama(): Promise<{ ok: boolean; models: string[]; error?: string }> {
+export async function checkOllama(): Promise<{
+  ok: boolean;
+  models: string[];
+  modelReady: boolean;
+  version?: string;
+  error?: string;
+}> {
+  const url = CONFIG.ollamaUrl;
+
+  // Step 1: Ping the root endpoint
   try {
-    const res = await fetch(`${CONFIG.ollamaUrl}/api/tags`);
-    if (!res.ok) return { ok: false, models: [], error: `HTTP ${res.status}` };
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return { ok: false, models: [], modelReady: false, error: `HTTP ${res.status}` };
+  } catch (e) {
+    return { ok: false, models: [], modelReady: false, error: (e as Error).message };
+  }
+
+  // Step 2: Get version (optional)
+  let version: string | undefined;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch(`${url}/api/version`, { signal: controller.signal });
+    clearTimeout(timer);
+    if (res.ok) { const d = await res.json(); version = d.version; }
+  } catch { /* version endpoint may not exist */ }
+
+  // Step 3: List models
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`${url}/api/tags`, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return { ok: true, models: [], modelReady: false, version, error: `Tags HTTP ${res.status}` };
     const data = await res.json();
     const models = (data.models ?? []).map((m: { name: string }) => m.name);
-    return { ok: true, models };
+    const modelReady = models.some(
+      (m: string) => m === CONFIG.model || m === `${CONFIG.model}:latest` || m.startsWith(`${CONFIG.model}:`)
+    );
+    return { ok: true, models, modelReady, version };
   } catch (e) {
-    return { ok: false, models: [], error: (e as Error).message };
+    return { ok: true, models: [], modelReady: false, version, error: (e as Error).message };
+  }
+}
+
+/**
+ * Pull a model on the Ollama server (works with any remote host via OLLAMA_URL).
+ * Returns an async generator of progress events.
+ */
+export async function* pullModelStream(
+  model?: string
+): AsyncGenerator<{ status: string; completed?: number; total?: number }> {
+  const url = CONFIG.ollamaUrl;
+  const target = model ?? CONFIG.model;
+
+  const res = await fetch(`${url}/api/pull`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: target, stream: true }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Pull failed (${res.status}): ${text.slice(0, 200)}`);
+  }
+  if (!res.body) throw new Error("No response body from Ollama pull");
+
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += dec.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try { yield JSON.parse(line); } catch { /* skip */ }
+    }
+  }
+  if (buffer.trim()) {
+    try { yield JSON.parse(buffer); } catch { /* skip */ }
   }
 }

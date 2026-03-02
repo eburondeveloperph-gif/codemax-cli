@@ -42,28 +42,45 @@ async function handleStart() {
   console.log(banner());
   console.log(bold("  Starting Eburon Copilot full stack…\n"));
 
-  // 1. Check Ollama
-  process.stdout.write(dim("  Checking Ollama…  "));
+  // 1. Check Ollama (respects OLLAMA_URL — any host/IP)
+  process.stdout.write(dim(`  Checking Ollama at ${CONFIG.ollamaUrl}…  `));
   const status = await checkOllama();
   if (!status.ok) {
     console.log(red("✖"));
-    console.error(red("  Ollama is not running. ") + dim("Start with: ollama serve\n"));
+    console.error(red("  Ollama is not reachable: ") + dim(status.error ?? "unknown error"));
+    console.log(dim("    URL: ") + accent(CONFIG.ollamaUrl));
+    const isRemote = !CONFIG.ollamaUrl.includes("localhost") && !CONFIG.ollamaUrl.includes("127.0.0.1");
+    if (isRemote) {
+      console.log(dim("    Ensure Ollama is running on the remote host with: ") + accent("OLLAMA_HOST=0.0.0.0 ollama serve"));
+    } else {
+      console.log(dim("    Start with: ") + accent("ollama serve"));
+    }
+    console.log(dim("    Or set OLLAMA_URL to point to a running instance\n"));
     process.exit(1);
   }
-  console.log(green("✔"));
+  console.log(green("✔") + (status.version ? dim(` v${status.version}`) : ""));
 
-  // 2. Check model
-  process.stdout.write(dim("  Checking model…  "));
-  const hasModel = status.models.some((m) => m.includes("codemax-v3"));
-  if (hasModel) {
+  // 2. Check model (auto-pull if missing — works for local and remote)
+  process.stdout.write(dim(`  Checking model ${CONFIG.model}…  `));
+  if (status.modelReady) {
     console.log(green("✔"));
   } else {
-    console.log(yellow("pulling…"));
-    const pull = spawn("ollama", ["pull", CONFIG.model], { stdio: "inherit" });
-    await new Promise<void>((r, j) => {
-      pull.on("close", (code) => (code === 0 ? r() : j(new Error(`pull failed: ${code}`))));
-    });
-    console.log(green("  ✔ ") + "Model ready");
+    console.log(yellow("not found — pulling…"));
+    try {
+      const { pullModelStream } = await import("./core/agent.js");
+      let lastStatus = "";
+      for await (const event of pullModelStream()) {
+        if (event.status && event.status !== lastStatus) {
+          process.stdout.write(dim(`    ${event.status}\r`));
+          lastStatus = event.status;
+        }
+      }
+      console.log(green("  ✔ ") + "Model ready");
+    } catch (err) {
+      console.log(red("  ✖ ") + dim((err as Error).message));
+      console.log(dim("    Pull manually: ") + accent(`ollama pull ${CONFIG.model}\n`));
+      process.exit(1);
+    }
   }
 
   // 3. Start CLI bridge server

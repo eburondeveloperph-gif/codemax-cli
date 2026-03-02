@@ -83,6 +83,11 @@ export function handleCommand(input: string, ctx: CommandContext): CommandResult
       handleSkills(parts.slice(1));
       return { handled: true };
 
+    case "status":
+    case "st":
+      handleStatus();
+      return { handled: true };
+
     default:
       console.log(yellow("  ⚠ Unknown command: ") + input + dim("  (try /help)\n"));
       return { handled: true };
@@ -103,6 +108,7 @@ function printHelp(): void {
     ["/history", "Show conversation history"],
     ["/config", "Show configuration"],
     ["/skills, /sk", "Offline skill datasets (list/search/fetch)"],
+    ["/status, /st", "Check Ollama + model status"],
     ["/exit, /q", "Exit the CLI"],
     ["Ctrl+C", "Exit"],
   ];
@@ -302,4 +308,33 @@ function handleSkills(args: string[]): void {
 
   console.log(yellow("  ⚠ Unknown skills subcommand: ") + subcmd);
   console.log(dim("  Available: list, search, categories, tags, fetch\n"));
+}
+
+// ─── /status command ──────────────────────────────────────────────
+async function handleStatus(): Promise<void> {
+  const { checkOllama } = await import("../core/agent.js");
+
+  console.log(sectionHeader("Ollama Status"));
+  console.log(`  ${accent("URL:")}     ${CONFIG.ollamaUrl}`);
+
+  const isRemote = !CONFIG.ollamaUrl.includes("localhost") && !CONFIG.ollamaUrl.includes("127.0.0.1");
+  console.log(`  ${accent("Mode:")}    ${isRemote ? "Remote" : "Local"}`);
+
+  const status = await checkOllama();
+
+  if (!status.ok) {
+    console.log(`  ${accent("Status:")}  ${red("✖ Unreachable")} ${dim(status.error ?? "")}`);
+    if (isRemote) {
+      console.log(dim("    Ensure Ollama is running on the host with: OLLAMA_HOST=0.0.0.0 ollama serve"));
+    } else {
+      console.log(dim("    Start with: ollama serve"));
+    }
+    console.log();
+    return;
+  }
+
+  console.log(`  ${accent("Status:")}  ${green("✔ Connected")}${status.version ? dim(` v${status.version}`) : ""}`);
+  console.log(`  ${accent("Models:")}  ${status.models.length > 0 ? status.models.join(", ") : dim("(none)")}`);
+  console.log(`  ${accent("Target:")}  ${CONFIG.model} ${status.modelReady ? green("✔ ready") : yellow("✖ not found")}`);
+  console.log();
 }

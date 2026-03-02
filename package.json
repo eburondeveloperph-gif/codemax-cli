@@ -27,6 +27,7 @@
     "deploy": "bash setup.sh"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.98.0",
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.17",
     "firebase": "^12.10.0",

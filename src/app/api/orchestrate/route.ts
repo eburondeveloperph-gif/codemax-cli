@@ -15,7 +15,8 @@ function sse(type: string, data: Record<string, unknown>): string {
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
-  const { prompt, ollamaBaseUrl = "http://localhost:11434" } = body as {
+  const ollamaDefault = (process.env.OLLAMA_URL ?? "http://localhost:11434").replace(/\/+$/, "");
+  const { prompt, ollamaBaseUrl = ollamaDefault } = body as {
     prompt?: string;
     ollamaBaseUrl?: string;
   };

@@ -33,8 +33,8 @@ export async function POST(req: NextRequest) {
   const model = (body.model as string) ?? "eburonmax-codemax-v3:latest";
   const stream = body.stream !== false;
 
-  // ── Forward to Ollama ──────────────────────────────────────────
-  const ollamaUrl = process.env.OLLAMA_URL ?? "http://localhost:11434";
+  // ── Forward to Ollama (respects OLLAMA_URL for any host/IP) ─────
+  const ollamaUrl = (process.env.OLLAMA_URL ?? "http://localhost:11434").replace(/\/+$/, "");
 
   try {
     const ollamaRes = await fetch(`${ollamaUrl}/api/chat`, {
