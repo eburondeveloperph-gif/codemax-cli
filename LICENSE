@@ -1,0 +1,104 @@
+Eburon AI Private Model License (EAPML) v1.0
+
+Copyright (c) 2026 Eburon Technologies / Eburon AI (https://eburon.ai/).
+All rights reserved.
+
+1. DEFINITIONS
+
+"Model" means the weights, quantized artifacts, manifests, prompts/templates,
+configuration, metadata, and any accompanying documentation distributed as
+codemax-v3.
+
+"You" means the individual or legal entity exercising permissions under this
+License.
+
+"Authorized Users" means employees/contractors of You (or You personally, if an
+individual) who have a legitimate need to use the Model and are bound by
+confidentiality obligations at least as protective as this License.
+
+2. GRANT OF LICENSE
+
+Subject to the terms of this License, Eburon AI grants You a limited,
+non-exclusive, non-transferable, revocable license to:
+
+  (a) download and use the Model solely for internal evaluation and internal
+      development, and
+  (b) run inference with the Model on hardware You control or hardware operated
+      on Your behalf under equivalent confidentiality and access controls.
+
+3. RESTRICTIONS
+
+You must not, and must not permit any third party to:
+
+  (a) redistribute, sell, sublicense, rent, lease, lend, publish, disclose, or
+      otherwise make available the Model (or any portion) to any third party;
+  (b) host the Model as a service accessible by anyone outside Your Authorized
+      Users (including "public API", "shared endpoint", "model-as-a-service",
+      or similar);
+  (c) reverse engineer the Model, including attempting to extract training data,
+      recover source weights, derive unquantized parameters, or reconstruct
+      proprietary components, except to the extent such restriction is
+      prohibited by applicable law;
+  (d) remove or alter proprietary notices, watermarks, or attribution embedded
+      in the Model or accompanying metadata;
+  (e) use the Model for unlawful activity, or to develop malware, exploits, or
+      other harmful code intended to compromise systems.
+
+4. DERIVATIVES AND FINE-TUNES
+
+Any fine-tuned variant, merged model, distillation, quantization variant,
+adapter, or derivative artifact based on the Model is considered a "Derivative".
+Derivatives are not permitted for redistribution and remain subject to this
+License unless Eburon AI grants explicit written permission.
+
+5. CONFIDENTIALITY
+
+The Model is confidential proprietary technology. You must protect it using
+reasonable security measures, including:
+
+  - access control (least privilege),
+  - secure storage,
+  - audit logging where feasible, and
+  - preventing accidental publication (e.g., public buckets, public registries,
+    public repos).
+
+6. OWNERSHIP
+
+The Model is licensed, not sold. Eburon AI retains all rights, title, and
+interest in and to the Model.
+
+7. DISCLAIMER OF WARRANTY
+
+THE MODEL IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, OR THAT THE MODEL WILL BE
+ERROR-FREE OR UNINTERRUPTED.
+
+8. LIMITATION OF LIABILITY
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL EBURON AI OR ITS
+AFFILIATES BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR
+PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS, REVENUE, DATA, OR BUSINESS
+INTERRUPTION, ARISING OUT OF OR RELATED TO THE MODEL OR THIS LICENSE, EVEN IF
+ADVISED OF THE POSSIBILITY OF SUCH DAMAGES. EBURON AI'S TOTAL LIABILITY FOR ANY
+CLAIM ARISING OUT OF OR RELATING TO THIS LICENSE SHALL NOT EXCEED ONE HUNDRED
+U.S. DOLLARS (USD $100).
+
+9. TERMINATION
+
+This License is effective until terminated. It terminates automatically if You
+breach any term. Upon termination, You must cease use and delete all copies of
+the Model and Derivatives in Your possession or control.
+
+10. GOVERNING LAW
+
+This License shall be governed by the laws applicable in the Philippines,
+without regard to conflict of law principles, unless otherwise required by
+applicable law.
+
+11. CONTACT / PERMISSIONS
+
+For enterprise licensing, redistribution permissions, or collaborator access
+requests, contact: eburondeveloperph@gmail.com
+
+https://eburon.ai/
