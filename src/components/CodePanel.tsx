@@ -274,28 +274,44 @@ export default function CodePanel({ files, streamingContent, isStreaming, templa
     }
   }, [files]);
 
-  // Generate preview URL — use template URL if provided, otherwise blob + sandbox
+  // Generate preview — template URL > VPS deploy > blob fallback
   const sandboxIdRef = useRef<string | null>(null);
+  const [deployStatus, setDeployStatus] = useState<"idle" | "deploying" | "live">("idle");
   useEffect(() => {
     if (prevUrlRef.current && prevUrlRef.current.startsWith("blob:")) URL.revokeObjectURL(prevUrlRef.current);
-    if (files.length === 0 && !templatePreviewUrl) { setPreviewUrl(null); return; }
+    if (files.length === 0 && !templatePreviewUrl) { setPreviewUrl(null); setDeployStatus("idle"); return; }
 
-    // Template files: use the server URL directly (assets need correct relative paths)
+    // Template: use server URL directly
     if (templatePreviewUrl) {
       prevUrlRef.current = templatePreviewUrl;
       setPreviewUrl(templatePreviewUrl);
+      setDeployStatus("idle");
       return;
     }
 
-    // 1. Try client-side blob URL (instant, works for HTML + React)
+    // 1. Instant blob preview while deploying
     const blobUrl = makePreviewURL(files);
-    if (blobUrl) {
-      prevUrlRef.current = blobUrl;
-      setPreviewUrl(blobUrl);
-    }
+    if (blobUrl) { prevUrlRef.current = blobUrl; setPreviewUrl(blobUrl); }
 
-    // 2. Also create server-side sandbox for more reliable serving
+    // 2. Deploy to VPS sandbox (HTTPS tunnel)
+    setDeployStatus("deploying");
     (async () => {
+      try {
+        const res = await fetch("/api/sandbox/deploy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ files: files.map(f => ({ path: f.path, content: f.content })) }),
+        });
+        const data = await res.json();
+        if (data.previewUrl) {
+          sandboxIdRef.current = data.id;
+          setPreviewUrl(data.previewUrl);
+          setDeployStatus("live");
+          return;
+        }
+      } catch { /* VPS deploy failed */ }
+      // Fallback: local sandbox
+      setDeployStatus("idle");
       try {
         const res = await fetch("/api/sandbox", {
           method: "POST",
@@ -305,12 +321,9 @@ export default function CodePanel({ files, streamingContent, isStreaming, templa
         const data = await res.json();
         if (data.id) {
           sandboxIdRef.current = data.id;
-          if (!blobUrl) {
-            const sandboxUrl = `/api/sandbox?id=${data.id}&file=index.html`;
-            setPreviewUrl(sandboxUrl);
-          }
+          if (!blobUrl) setPreviewUrl(`/api/sandbox?id=${data.id}&file=index.html`);
         }
-      } catch { /* sandbox creation failed, blob URL still works */ }
+      } catch { /* both failed, blob URL is fine */ }
     })();
   }, [files, templatePreviewUrl]);
 
@@ -411,7 +424,7 @@ export default function CodePanel({ files, streamingContent, isStreaming, templa
       {tab === "preview" && (
         <>
           {previewUrl
-            ? <PreviewFrame url={previewUrl} device={device} sandboxId={sandboxIdRef.current} />
+            ? <PreviewFrame url={previewUrl} device={device} sandboxId={sandboxIdRef.current} deployStatus={deployStatus} />
             : isStreaming
               ? <Msg icon={<Eye size={24} />} title="Preview building…" sub="Code is being generated — preview will appear automatically" />
               : hasFiles
@@ -433,7 +446,7 @@ export default function CodePanel({ files, streamingContent, isStreaming, templa
   );
 }
 
-function PreviewFrame({ url, device, sandboxId }: { url: string; device: Device; sandboxId?: string | null }) {
+function PreviewFrame({ url, device, sandboxId, deployStatus }: { url: string; device: Device; sandboxId?: string | null; deployStatus?: "idle" | "deploying" | "live" }) {
   const [key, setKey] = useState(0);
   const [currentUrl, setCurrentUrl] = useState(url);
   const [error, setError] = useState(false);
@@ -449,20 +462,36 @@ function PreviewFrame({ url, device, sandboxId }: { url: string; device: Device;
   };
 
   const openExternal = () => {
-    if (currentUrl.startsWith("blob:") || currentUrl.startsWith("/api/sandbox")) {
-      window.open(currentUrl, "_blank");
-    }
+    window.open(currentUrl, "_blank");
   };
+
+  const isLive = deployStatus === "live";
+  const isDeploying = deployStatus === "deploying";
+  const isTunnel = currentUrl.includes("trycloudflare.com");
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="flex items-center justify-between px-4 py-1.5 border-b border-white/[0.04] shrink-0">
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-[10px] text-gray-500 font-mono">Live Preview</span>
+          {isDeploying ? (
+            <>
+              <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+              <span className="text-[10px] text-yellow-500 font-mono">Deploying to VPS…</span>
+            </>
+          ) : isLive || isTunnel ? (
+            <>
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-[10px] text-green-500 font-mono">Live on VPS</span>
+            </>
+          ) : (
+            <>
+              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+              <span className="text-[10px] text-gray-500 font-mono">Local Preview</span>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-3">
-          {sandboxId && currentUrl.startsWith("blob:") && (
+          {sandboxId && !isTunnel && (
             <button onClick={trySandbox} className="flex items-center gap-1 text-[11px] text-cyan-500 hover:text-cyan-400 transition-colors">
               Server Preview
             </button>
@@ -475,6 +504,15 @@ function PreviewFrame({ url, device, sandboxId }: { url: string; device: Device;
           </button>
         </div>
       </div>
+      {/* URL bar */}
+      {isTunnel && (
+        <div className="px-4 py-1 border-b border-white/[0.04] bg-white/[0.02]">
+          <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/[0.04] border border-white/[0.06]">
+            <span className="text-[9px] text-green-500">🔒</span>
+            <span className="text-[10px] text-gray-400 font-mono truncate">{currentUrl}</span>
+          </div>
+        </div>
+      )}
       <div className="flex-1 overflow-auto flex items-center justify-center bg-[#080808] p-2 sm:p-6">
         <div className={device !== "web" ? `device-${device} overflow-hidden` : "w-full h-full rounded-lg overflow-hidden border border-white/[0.06]"}>
           {error ? (
