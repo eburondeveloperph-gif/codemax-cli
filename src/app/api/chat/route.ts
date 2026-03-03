@@ -247,6 +247,8 @@ export async function POST(req: NextRequest) {
     },
   };
   if (model) bodyObj.model = model;
+  // Ollama requires a model field — ensure it's always set
+  if (!bodyObj.model) bodyObj.model = process.env.EBURON_MODEL || "eburonmax/codemax-v3";
 
   try {
     const controller = new AbortController();
