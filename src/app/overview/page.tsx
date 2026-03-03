@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import type { Components } from "react-markdown";
+import "highlight.js/styles/github-dark.css";
 
 /* ── Table of Contents extractor ─────────────────────────── */
 interface TocEntry {
@@ -160,7 +161,7 @@ const mdComponents: Components = {
     const isBlock = className?.includes("language-") || className?.includes("hljs");
     if (isBlock) {
       return (
-        <code className={`${className ?? ""} text-sm`} {...props}>
+        <code className={`${className ?? ""} !p-0 text-sm`} {...props}>
           {children}
         </code>
       );
@@ -176,7 +177,7 @@ const mdComponents: Components = {
   },
   pre: ({ children, ...props }) => (
     <pre
-      className="bg-[#0d1117] border border-gray-800 rounded-lg p-4 my-4 overflow-x-auto text-sm leading-6"
+      className="!bg-[#0d1117] border border-gray-800 rounded-lg p-4 my-4 overflow-x-auto text-sm leading-6 [&>code]:!p-0 [&>code]:!bg-transparent"
       {...props}
     >
       {children}
@@ -189,6 +190,22 @@ export default function OverviewPage() {
   const [markdown, setMarkdown] = useState("");
   const [loading, setLoading] = useState(true);
   const [activeId, setActiveId] = useState("");
+
+  // Override global overflow:hidden so this page can scroll
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    html.style.overflow = "auto";
+    html.style.height = "auto";
+    body.style.overflow = "auto";
+    body.style.height = "auto";
+    return () => {
+      html.style.overflow = "";
+      html.style.height = "";
+      body.style.overflow = "";
+      body.style.height = "";
+    };
+  }, []);
 
   // Fetch development.md at build/runtime
   useEffect(() => {
