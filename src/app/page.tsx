@@ -81,6 +81,25 @@ async function dbSaveFiles(sessionId: string, files: GeneratedFile[]) {
   } catch { /* non-critical */ }
 }
 
+/** Fire-and-forget: extract memories from the exchange */
+async function extractMemories(sessionId: string, userContent: string, assistantContent: string) {
+  try {
+    // Store conversation summary as memory
+    if (userContent.length > 30 && assistantContent.length > 50) {
+      const summary = `User asked about: ${userContent.slice(0, 100)}. Result: ${assistantContent.slice(0, 200)}`;
+      await fetch("/api/memory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "conversation_summary",
+          content: summary,
+          session_id: sessionId,
+        }),
+      });
+    }
+  } catch { /* non-critical */ }
+}
+
 async function dbLoadSessions(): Promise<Conversation[]> {
   try {
     const res = await fetch("/api/db/sessions?source=web&limit=30");
@@ -307,6 +326,7 @@ export default function Home() {
         setStreamingPaths([]);
         dbSaveMessage(convId!, { id: aId, role: "assistant", content: full });
         if (finalFiles.length > 0) dbSaveFiles(convId!, finalFiles);
+        extractMemories(convId!, text, full);
       }
     } catch (err: unknown) {
       if (err instanceof Error && err.name !== "AbortError") {

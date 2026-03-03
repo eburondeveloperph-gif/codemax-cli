@@ -76,7 +76,7 @@ export default function ChatSidebar({
   const [endpointOpen, setEndpointOpen] = useState(false);
   const [jokeIdx, setJokeIdx] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
-  const [attachedFiles, setAttachedFiles] = useState<{ name: string; content: string }[]>([]);
+  const [attachedFiles, setAttachedFiles] = useState<{ name: string; content: string; isImage?: boolean }[]>([]);
   const [sidebarTab, setSidebarTab] = useState<"chat" | "templates">("chat");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -121,17 +121,27 @@ export default function ChatSidebar({
     /* eslint-enable @typescript-eslint/no-explicit-any */
   }, [isRecording]);
 
-  // ── File upload handler ──
+  // ── File upload handler (code files + images) ──
   const handleFileUpload = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
     Array.from(files).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const content = reader.result as string;
-        setAttachedFiles(prev => [...prev, { name: file.name, content }]);
-      };
-      reader.readAsText(file);
+      const isImage = file.type.startsWith("image/");
+      if (isImage) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = reader.result as string;
+          setAttachedFiles(prev => [...prev, { name: file.name, content: base64, isImage: true }]);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const content = reader.result as string;
+          setAttachedFiles(prev => [...prev, { name: file.name, content }]);
+        };
+        reader.readAsText(file);
+      }
     });
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, []);
@@ -141,12 +151,35 @@ export default function ChatSidebar({
     let text = input.trim();
     if (!text && attachedFiles.length === 0) return;
     if (isStreaming || !activeEndpoint) return;
-    // Prepend attached files as context
+
+    // Handle attached files (images + code)
     if (attachedFiles.length > 0) {
-      const fileContext = attachedFiles.map(f => `[Attached file: ${f.name}]\n\`\`\`\n${f.content}\n\`\`\``).join("\n\n");
-      text = fileContext + (text ? `\n\n${text}` : "\n\nPlease analyze these files.");
+      const codeFiles = attachedFiles.filter(f => !f.isImage);
+      const imageFiles = attachedFiles.filter(f => f.isImage);
+
+      // Code files as context
+      if (codeFiles.length > 0) {
+        const fileContext = codeFiles.map(f => `[Attached file: ${f.name}]\n\`\`\`\n${f.content}\n\`\`\``).join("\n\n");
+        text = fileContext + (text ? `\n\n${text}` : "\n\nPlease analyze these files.");
+      }
+
+      // Images: analyze via vision API (fire-and-forget, add description to context)
+      if (imageFiles.length > 0) {
+        const imgNames = imageFiles.map(f => f.name).join(", ");
+        text = `[Images attached: ${imgNames}]\n${text || "Describe what you see in this image."}`;
+        // Send to vision API in background
+        imageFiles.forEach(f => {
+          fetch("/api/vision", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ image: f.content, prompt: text }),
+          }).catch(() => {});
+        });
+      }
+
       setAttachedFiles([]);
     }
+
     onSend(text);
     setInput("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
@@ -342,7 +375,12 @@ export default function ChatSidebar({
         <div className="px-3 py-1.5 border-t border-white/[0.04] flex flex-wrap gap-1">
           {attachedFiles.map((f, i) => (
             <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.06] text-[10px] text-gray-400">
-              <Paperclip size={9} />{f.name}
+              {f.isImage ? (
+                <img src={f.content} alt={f.name} className="w-4 h-4 rounded object-cover" />
+              ) : (
+                <Paperclip size={9} />
+              )}
+              {f.name}
               <button onClick={() => setAttachedFiles(prev => prev.filter((_, j) => j !== i))} className="text-gray-600 hover:text-red-400 ml-0.5">×</button>
             </span>
           ))}
@@ -363,7 +401,7 @@ export default function ChatSidebar({
           >
             <Paperclip size={13} />
           </button>
-          <input ref={fileInputRef} type="file" multiple accept=".ts,.tsx,.js,.jsx,.css,.html,.json,.md,.py,.go,.rs,.yaml,.yml,.sh,.toml,.txt,.env,.sql,.xml,.svg" onChange={handleFileUpload} className="hidden" />
+          <input ref={fileInputRef} type="file" multiple accept=".ts,.tsx,.js,.jsx,.css,.html,.json,.md,.py,.go,.rs,.yaml,.yml,.sh,.toml,.txt,.env,.sql,.xml,.svg,image/*" onChange={handleFileUpload} className="hidden" />
 
           {/* Mic button */}
           <button

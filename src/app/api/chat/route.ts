@@ -143,6 +143,24 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Inject context memory (long-term facts + codebase knowledge)
+  if (lastUserMsg?.content) {
+    try {
+      const { searchAllMemory, formatMemoryContext } = await import("@/lib/memory");
+      const memResults = await searchAllMemory(lastUserMsg.content, { topK: 5, threshold: 0.35 });
+      if (memResults.length > 0) {
+        const memContext = formatMemoryContext(memResults);
+        enrichedMessages = enrichedMessages.map((m: { role: string; content: string }) =>
+          m.role === "system"
+            ? { ...m, content: m.content + "\n\n" + memContext }
+            : m
+        );
+      }
+    } catch (e) {
+      console.warn("[chat] Memory search failed (non-critical):", e instanceof Error ? e.message : e);
+    }
+  }
+
   // Build body with optimized generation parameters for code output
   const bodyObj: Record<string, unknown> = {
     messages: enrichedMessages,
