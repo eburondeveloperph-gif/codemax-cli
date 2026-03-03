@@ -250,6 +250,9 @@ export async function POST(req: NextRequest) {
   // Ollama requires a model field — ensure it's always set
   if (!bodyObj.model) bodyObj.model = process.env.EBURON_MODEL || "eburonmax/codemax-v3";
 
+  // Fallback model chain for low-memory servers
+  const FALLBACK_MODELS = ["qwen3:8b", "gemma3:latest", "eburonmax/eburon-max:latest"];
+
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 120000);
@@ -263,6 +266,29 @@ export async function POST(req: NextRequest) {
 
     if (!upstream.ok) {
       const text = await upstream.text();
+      // If OOM or model too large, retry with smaller models on the same server
+      if (upstream.status === 500 && text.includes("more system memory")) {
+        for (const fbModel of FALLBACK_MODELS) {
+          try {
+            const retryBody = { ...bodyObj, model: fbModel };
+            const ctrl = new AbortController();
+            const t = setTimeout(() => ctrl.abort(), 120000);
+            const retry = await fetch(targetUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(retryBody),
+              signal: ctrl.signal,
+            });
+            clearTimeout(t);
+            if (retry.ok && stream && retry.body) {
+              return new NextResponse(retry.body, {
+                headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive", "X-Accel-Buffering": "no" },
+              });
+            }
+            if (retry.ok) return NextResponse.json(await retry.json());
+          } catch { /* try next model */ }
+        }
+      }
       return NextResponse.json(
         { error: `Upstream error: ${upstream.status}`, detail: text, ollamaUrl: targetUrl },
         { status: upstream.status }
