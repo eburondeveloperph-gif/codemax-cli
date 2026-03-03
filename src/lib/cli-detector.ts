@@ -205,23 +205,23 @@ export async function detectCLIEndpoints(): Promise<CLIEndpoint[]> {
     { label: "Localhost", host: "localhost", isLocal: true },
   ];
 
-  // Add OLLAMA_URL host if it's remote and not a tunnel (tunnels handled separately below)
+  // Add all VPS hosts first (so their labels take priority)
+  for (const ip of REMOTE_HOSTS) {
+    if (!LOCALHOST_ALIASES.has(ip) && !hostsToScan.some(h => h.host === ip)) {
+      hostsToScan.push({ label: "PH Local Server", host: ip, isLocal: false });
+    }
+  }
+
+  // Add OLLAMA_URL host if it's remote, not a tunnel, and not already listed
   const ollamaUrl = process.env.OLLAMA_URL;
   const isTunnelUrl = (url: string) => /trycloudflare\.com|ngrok|tunnel/i.test(url);
   if (ollamaUrl && !isTunnelUrl(ollamaUrl)) {
     try {
       const u = new URL(ollamaUrl);
-      if (!LOCALHOST_ALIASES.has(u.hostname)) {
+      if (!LOCALHOST_ALIASES.has(u.hostname) && !hostsToScan.some(h => h.host === u.hostname)) {
         hostsToScan.push({ label: "EU Server", host: u.hostname, isLocal: false });
       }
     } catch { /* bad URL */ }
-  }
-
-  // Add all VPS hosts
-  for (const ip of REMOTE_HOSTS) {
-    if (!LOCALHOST_ALIASES.has(ip) && !hostsToScan.some(h => h.host === ip)) {
-      hostsToScan.push({ label: "PH Local Server", host: ip, isLocal: false });
-    }
   }
 
   // EBURON_CLI_ENDPOINT env override
