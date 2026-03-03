@@ -205,9 +205,10 @@ export async function detectCLIEndpoints(): Promise<CLIEndpoint[]> {
     { label: "Localhost", host: "localhost", isLocal: true },
   ];
 
-  // Add OLLAMA_URL host if it's remote
+  // Add OLLAMA_URL host if it's remote and not a tunnel (tunnels handled separately below)
   const ollamaUrl = process.env.OLLAMA_URL;
-  if (ollamaUrl) {
+  const isTunnelUrl = (url: string) => /trycloudflare\.com|ngrok|tunnel/i.test(url);
+  if (ollamaUrl && !isTunnelUrl(ollamaUrl)) {
     try {
       const u = new URL(ollamaUrl);
       if (!LOCALHOST_ALIASES.has(u.hostname)) {
@@ -306,7 +307,7 @@ export async function detectCLIEndpoints(): Promise<CLIEndpoint[]> {
     if (!hasAny) {
       detected.push({
         id: `vps-${host.replace(/[\.:]/g, "-")}-offline`,
-        name: `${label} · Ollama`,
+        name: label,
         url: `http://${host}:11434/api/chat`,
         status: "offline",
         type: "http",
