@@ -321,15 +321,18 @@ function TemplatePreview({
               placeholder="e.g. a food delivery service with cart and tracking…"
               className="flex-1 bg-transparent text-[11px] text-gray-200 placeholder-gray-600 resize-none outline-none leading-relaxed max-h-24"
             />
-            {/* Send button — only visible when input meets minimum */}
-            {canSend && (
-              <button
-                onClick={handleSend}
-                className="shrink-0 w-7 h-7 rounded-lg bg-gradient-to-r from-eburon-600 to-purple-600 hover:from-eburon-500 hover:to-purple-500 flex items-center justify-center transition-all shadow-lg shadow-eburon-600/20 animate-in fade-in"
-              >
-                <Send size={11} className="text-white" />
-              </button>
-            )}
+            {/* Send button — always visible, disabled until input meets minimum */}
+            <button
+              onClick={handleSend}
+              disabled={!canSend}
+              className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                canSend
+                  ? "bg-gradient-to-r from-eburon-600 to-purple-600 hover:from-eburon-500 hover:to-purple-500 shadow-lg shadow-eburon-600/20"
+                  : "bg-white/[0.06] opacity-50 cursor-not-allowed"
+              }`}
+            >
+              <Send size={11} className="text-white" />
+            </button>
           </div>
           {/* Character/word hint */}
           <div className="flex items-center justify-between">

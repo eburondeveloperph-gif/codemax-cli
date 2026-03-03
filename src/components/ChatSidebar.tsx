@@ -352,13 +352,13 @@ export default function ChatSidebar({
       {/* ── Input ── */}
       <div className="px-3 pb-4 pt-2 border-t border-white/[0.06]">
         <div className={`flex items-end gap-1.5 bg-white/[0.04] border rounded-xl px-3 py-2.5 transition-all ${
-          activeEndpoint ? "border-white/[0.08] focus-within:border-eburon-500/50" : "border-white/[0.04] opacity-50"
+          activeEndpoint ? "border-white/[0.08] focus-within:border-eburon-500/50" : "border-white/[0.06] opacity-60"
         }`}>
           {/* Upload button */}
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={!activeEndpoint || isStreaming}
-            className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-300 hover:bg-white/[0.06] transition-colors disabled:opacity-30"
+            className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-300 hover:bg-white/[0.06] transition-colors disabled:opacity-50"
             title="Attach file"
           >
             <Paperclip size={13} />
@@ -397,7 +397,7 @@ export default function ChatSidebar({
             </button>
           ) : (
             <button onClick={handleSend} disabled={(!input.trim() && attachedFiles.length === 0) || !activeEndpoint}
-              className="shrink-0 w-7 h-7 rounded-lg bg-eburon-600 hover:bg-eburon-500 disabled:opacity-30 flex items-center justify-center transition-all">
+              className="shrink-0 w-7 h-7 rounded-lg bg-eburon-600 hover:bg-eburon-500 disabled:opacity-50 flex items-center justify-center transition-all">
               <Send size={11} className="text-white" />
             </button>
           )}
