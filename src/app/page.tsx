@@ -102,6 +102,32 @@ async function extractMemories(sessionId: string, userContent: string, assistant
   } catch { /* non-critical */ }
 }
 
+/** Fire-and-forget: deploy generated files to GitHub + Vercel */
+async function deployClientApp(
+  files: GeneratedFile[],
+  userId: string,
+  appName: string,
+  onResult: (result: { vercelUrl?: string; githubUrl?: string; path?: string }) => void
+) {
+  try {
+    const deployable = files.filter((f) => !f.path.endsWith(".md") && f.content.trim().length > 0);
+    if (deployable.length === 0) return;
+    const res = await fetch("/api/deploy/client", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        files: deployable.map((f) => ({ path: f.path, content: f.content, language: f.language })),
+        userId,
+        appName,
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      onResult(data);
+    }
+  } catch { /* non-critical */ }
+}
+
 async function dbLoadSessions(): Promise<Conversation[]> {
   try {
     const res = await fetch("/api/db/sessions?source=web&limit=30");
@@ -132,6 +158,8 @@ export default function Home() {
   const [displayedFiles, setDisplayedFiles] = useState<GeneratedFile[]>([]);
   const [streamingPaths, setStreamingPaths] = useState<string[]>([]);
   const [templatePreviewUrl, setTemplatePreviewUrl] = useState<string | null>(null);
+  const [deployUrl, setDeployUrl] = useState<string | null>(null);
+  const [deployGithubUrl, setDeployGithubUrl] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
@@ -342,6 +370,16 @@ export default function Home() {
         extractMemories(convId!, text, full);
         // Auto-backup to local + VPS (fire-and-forget)
         fetch("/api/db/backup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ targets: ["local", "vps"] }) }).catch(() => {});
+        // Auto-deploy generated files to GitHub + Vercel
+        if (finalFiles.length > 0 && finalFiles.some((f) => !f.path.endsWith(".md"))) {
+          const convTitle = conversations.find((c) => c.id === convId)?.title || "app";
+          setDeployUrl(null);
+          setDeployGithubUrl(null);
+          deployClientApp(finalFiles, user?.email || "anonymous", convTitle, (result) => {
+            if (result.vercelUrl) setDeployUrl(result.vercelUrl);
+            if (result.githubUrl) setDeployGithubUrl(result.githubUrl);
+          });
+        }
       }
     } catch (err: unknown) {
       if (err instanceof Error && err.name !== "AbortError") {
@@ -440,6 +478,8 @@ export default function Home() {
           streamingContent={streamingContent}
           isStreaming={isStreaming}
           templatePreviewUrl={templatePreviewUrl}
+          deployUrl={deployUrl}
+          deployGithubUrl={deployGithubUrl}
         />
       </main>
     </div>

@@ -17,6 +17,8 @@ interface Props {
   streamingContent: string;
   isStreaming: boolean;
   templatePreviewUrl?: string | null;
+  deployUrl?: string | null;
+  deployGithubUrl?: string | null;
 }
 
 // ── Syntax highlighter ────────────────────────────────────────────
@@ -255,7 +257,7 @@ function CodeEditor({ content, isStreaming }: { content: string; isStreaming: bo
 }
 
 // ── Main ──────────────────────────────────────────────────────────
-export default function CodePanel({ files, streamingContent, isStreaming, templatePreviewUrl }: Props) {
+export default function CodePanel({ files, streamingContent, isStreaming, templatePreviewUrl, deployUrl, deployGithubUrl }: Props) {
   const [tab, setTab] = useState<Tab>("code");
   const [device, setDevice] = useState<Device>("web");
   const [activeFile, setActiveFile] = useState<string>("");
@@ -408,6 +410,18 @@ export default function CodePanel({ files, streamingContent, isStreaming, templa
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-30 text-white text-xs font-medium transition-all">
           <Download size={12} />{downloading ? "Packaging…" : "Download ZIP"}
         </button>
+        {deployUrl && (
+          <a href={deployUrl} target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white text-xs font-medium transition-all animate-fade-in">
+            <Globe size={12} />Deployed
+          </a>
+        )}
+        {deployGithubUrl && (
+          <a href={deployGithubUrl} target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-gray-400 hover:text-white text-[10px] font-mono transition-all">
+            Source
+          </a>
+        )}
       </div>
 
       {/* ── Code tab ── */}
