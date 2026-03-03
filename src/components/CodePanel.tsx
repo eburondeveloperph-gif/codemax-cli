@@ -257,8 +257,10 @@ function CodeEditor({ content, isStreaming }: { content: string; isStreaming: bo
 }
 
 // ── Main ──────────────────────────────────────────────────────────
+const STANDBY_URL = "https://studious-potato-sooty.vercel.app/";
+
 export default function CodePanel({ files, streamingContent, isStreaming, templatePreviewUrl, deployUrl, deployGithubUrl }: Props) {
-  const [tab, setTab] = useState<Tab>("code");
+  const [tab, setTab] = useState<Tab>("preview");
   const [device, setDevice] = useState<Device>("web");
   const [activeFile, setActiveFile] = useState<string>("");
   const [downloading, setDownloading] = useState(false);
@@ -445,13 +447,15 @@ export default function CodePanel({ files, streamingContent, isStreaming, templa
       {/* ── Preview tab ── */}
       {tab === "preview" && (
         <>
-          {previewUrl
-            ? <PreviewFrame url={previewUrl} device={device} sandboxId={sandboxIdRef.current} deployStatus={deployStatus} screenshotUrl={screenshotUrl} />
-            : isStreaming
-              ? <Msg icon={<Eye size={24} />} title="Preview building…" sub="Code is being generated — preview will appear automatically" />
-              : hasFiles
-                ? <Msg icon={<Eye size={24} />} title="Preview unavailable" sub="No HTML/React entry found. Download ZIP to run locally." />
-                : <EmptyCode />}
+          {deployUrl
+            ? <PreviewFrame url={deployUrl} device={device} sandboxId={null} deployStatus="live" screenshotUrl={null} />
+            : previewUrl
+              ? <PreviewFrame url={previewUrl} device={device} sandboxId={sandboxIdRef.current} deployStatus={deployStatus} screenshotUrl={screenshotUrl} />
+              : isStreaming
+                ? <Msg icon={<Eye size={24} />} title="Preview building…" sub="Code is being generated — preview will appear automatically" />
+                : hasFiles
+                  ? <Msg icon={<Eye size={24} />} title="Preview unavailable" sub="No HTML/React entry found. Download ZIP to run locally." />
+                  : <StandbyPreview device={device} />}
         </>
       )}
 
@@ -589,6 +593,36 @@ function EmptyCode() {
         {["Landing Page", "PWA Mobile App", "Movie Portal", "Dashboard"].map((t) => (
           <span key={t} className="px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/[0.06] text-[10px] text-gray-600">{t}</span>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function StandbyPreview({ device }: { device: Device }) {
+  return (
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="flex items-center justify-between px-4 py-1.5 border-b border-white/[0.04] shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
+          <span className="text-[10px] text-cyan-500 font-mono">System Standby</span>
+        </div>
+        <a href={STANDBY_URL} target="_blank" rel="noopener noreferrer"
+          className="flex items-center gap-1 text-[11px] text-gray-600 hover:text-gray-300 transition-colors">
+          <Globe size={10} /> Open
+        </a>
+      </div>
+      <div className="flex-1 overflow-hidden flex items-center justify-center bg-[#080808] p-2 sm:p-4">
+        <div className={device !== "web"
+          ? `device-${device} overflow-hidden flex-shrink-0`
+          : "w-full h-full rounded-lg overflow-hidden border border-white/[0.06]"
+        } style={device === "web" ? { minHeight: 0 } : undefined}>
+          <iframe
+            src={STANDBY_URL}
+            className="w-full h-full border-0"
+            sandbox="allow-scripts allow-same-origin"
+            title="Eburon Standby"
+          />
+        </div>
       </div>
     </div>
   );
