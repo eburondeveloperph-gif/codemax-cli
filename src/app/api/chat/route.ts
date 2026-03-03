@@ -157,9 +157,9 @@ export async function POST(req: NextRequest) {
         return new Response(readable, { headers: { "Content-Type": "application/x-ndjson", "Cache-Control": "no-cache", "Transfer-Encoding": "chunked" } });
       }
       return NextResponse.json({ model: `opencode/${ocModel}`, message: { role: "assistant", content: assistantText }, done: true });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return NextResponse.json({ error: `OpenCode bridge: ${msg}` }, { status: 502 });
+    } catch {
+      // OpenCode not reachable (e.g. on Vercel) — fall back to default Ollama endpoint
+      targetUrl = `${ollamaBase}/api/chat`;
     }
   }
 

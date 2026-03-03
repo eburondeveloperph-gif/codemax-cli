@@ -276,7 +276,7 @@ export async function detectCLIEndpoints(): Promise<CLIEndpoint[]> {
     }
   }
 
-  // ── OpenCode autonomous agent (local server) ──
+  // ── OpenCode autonomous agent (local server — only shown when reachable) ──
   const ocBase = (process.env.OPENCODE_URL ?? "http://127.0.0.1:3333").replace(/\/+$/, "");
   const ocHealthRes = await fetchWithTimeout(`${ocBase}/global/health`, { timeoutMs: 3000 });
   if (ocHealthRes?.ok) {
@@ -295,17 +295,8 @@ export async function detectCLIEndpoints(): Promise<CLIEndpoint[]> {
         lastChecked: now,
       });
     } catch { /* parse error */ }
-  } else {
-    detected.push({
-      id: "opencode-agent-offline",
-      name: "PH Server2 · OpenCode",
-      url: "/api/opencode/chat",
-      status: "offline",
-      type: "http",
-      model: "ollama/codemax-v3",
-      lastChecked: now,
-    });
   }
+  // If OpenCode is not reachable (e.g. on Vercel), skip — don't show offline entry
 
   // ── 2. Scan all hosts in parallel ──
   const scanResults = await Promise.all(hostsToScan.map(async ({ label, host, isLocal }) => {
