@@ -84,17 +84,25 @@ function makePreviewURL(files: GeneratedFile[]): string | null {
   const styles = cssFiles.map((f) => f.content).join("\n");
   const allContent = files.map((f) => f.content).join("\n");
 
-  // Plain HTML project
-  const htmlFile = files.find((f) => f.path === "index.html" || f.path.endsWith("/index.html"));
+  // Plain HTML project — look for any .html file
+  const htmlFile = files.find((f) => f.path.endsWith(".html"));
   if (htmlFile) {
     let html = htmlFile.content;
+    // Inline external CSS references
     cssFiles.forEach((f) => {
       html = html.replace(new RegExp(`<link[^>]*href=["']${f.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["'][^>]*>`, "g"), `<style>${f.content}</style>`);
     });
+    // Inline external JS references
     files.filter((f) => ["javascript", "js"].includes(f.language)).forEach((f) => {
       html = html.replace(new RegExp(`<script[^>]*src=["']${f.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["'][^>]*></script>`, "g"), `<script>${f.content}</script>`);
     });
     return URL.createObjectURL(new Blob([html], { type: "text/html" }));
+  }
+
+  // Check if any file contains a full HTML document (FAST mode may put HTML in non-.html named file)
+  const htmlContentFile = files.find((f) => f.content.includes("<!DOCTYPE html>") || f.content.includes("<html"));
+  if (htmlContentFile) {
+    return URL.createObjectURL(new Blob([htmlContentFile.content], { type: "text/html" }));
   }
 
   // React / TS project — Babel standalone with CDN libraries
@@ -265,12 +273,48 @@ export default function CodePanel({ files, streamingContent, isStreaming }: Prop
     }
   }, [files]);
 
+  // Generate preview URL — try blob URL first, sandbox API as fallback
+  const sandboxIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (prevUrlRef.current) URL.revokeObjectURL(prevUrlRef.current);
-    const url = makePreviewURL(files);
-    prevUrlRef.current = url;
-    setPreviewUrl(url);
+    if (prevUrlRef.current && prevUrlRef.current.startsWith("blob:")) URL.revokeObjectURL(prevUrlRef.current);
+    if (files.length === 0) { setPreviewUrl(null); return; }
+
+    // 1. Try client-side blob URL (instant, works for HTML + React)
+    const blobUrl = makePreviewURL(files);
+    if (blobUrl) {
+      prevUrlRef.current = blobUrl;
+      setPreviewUrl(blobUrl);
+    }
+
+    // 2. Also create server-side sandbox for more reliable serving
+    (async () => {
+      try {
+        const res = await fetch("/api/sandbox", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ files: files.map(f => ({ path: f.path, content: f.content })) }),
+        });
+        const data = await res.json();
+        if (data.id) {
+          sandboxIdRef.current = data.id;
+          // If blob URL didn't work, use sandbox URL
+          if (!blobUrl) {
+            const sandboxUrl = `/api/sandbox?id=${data.id}&file=index.html`;
+            setPreviewUrl(sandboxUrl);
+          }
+        }
+      } catch { /* sandbox creation failed, blob URL still works */ }
+    })();
   }, [files]);
+
+  // Auto-switch to preview tab when generation completes and preview is available
+  const wasStreamingRef = useRef(false);
+  useEffect(() => {
+    if (wasStreamingRef.current && !isStreaming && previewUrl) {
+      setTab("preview");
+    }
+    wasStreamingRef.current = isStreaming;
+  }, [isStreaming, previewUrl]);
 
   const { code: liveCode, path: livePath } = useMemo(() => extractLiveCode(streamingContent), [streamingContent]);
   const displayFile = files.find((f) => f.path === activeFile) || (files.length > 0 ? files[0] : undefined);
@@ -360,9 +404,9 @@ export default function CodePanel({ files, streamingContent, isStreaming }: Prop
       {tab === "preview" && (
         <>
           {previewUrl
-            ? <PreviewFrame url={previewUrl} device={device} />
+            ? <PreviewFrame url={previewUrl} device={device} sandboxId={sandboxIdRef.current} />
             : isStreaming
-              ? <Msg icon={<Eye size={24} />} title="Preview ready after generation" sub="Generating files…" />
+              ? <Msg icon={<Eye size={24} />} title="Preview building…" sub="Code is being generated — preview will appear automatically" />
               : hasFiles
                 ? <Msg icon={<Eye size={24} />} title="Preview unavailable" sub="No HTML/React entry found. Download ZIP to run locally." />
                 : <EmptyCode />}
@@ -382,19 +426,65 @@ export default function CodePanel({ files, streamingContent, isStreaming }: Prop
   );
 }
 
-function PreviewFrame({ url, device }: { url: string; device: Device }) {
+function PreviewFrame({ url, device, sandboxId }: { url: string; device: Device; sandboxId?: string | null }) {
   const [key, setKey] = useState(0);
+  const [currentUrl, setCurrentUrl] = useState(url);
+  const [error, setError] = useState(false);
+
+  useEffect(() => { setCurrentUrl(url); setError(false); }, [url]);
+
+  const trySandbox = () => {
+    if (sandboxId) {
+      setCurrentUrl(`/api/sandbox?id=${sandboxId}&file=index.html`);
+      setError(false);
+      setKey(k => k + 1);
+    }
+  };
+
+  const openExternal = () => {
+    if (currentUrl.startsWith("blob:") || currentUrl.startsWith("/api/sandbox")) {
+      window.open(currentUrl, "_blank");
+    }
+  };
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="flex items-center justify-end px-4 py-1.5 border-b border-white/[0.04] shrink-0">
-        <button onClick={() => setKey((k) => k + 1)} className="flex items-center gap-1 text-[11px] text-gray-600 hover:text-gray-300 transition-colors">
-          <RefreshCw size={10} /> Refresh
-        </button>
+      <div className="flex items-center justify-between px-4 py-1.5 border-b border-white/[0.04] shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          <span className="text-[10px] text-gray-500 font-mono">Live Preview</span>
+        </div>
+        <div className="flex items-center gap-3">
+          {sandboxId && currentUrl.startsWith("blob:") && (
+            <button onClick={trySandbox} className="flex items-center gap-1 text-[11px] text-cyan-500 hover:text-cyan-400 transition-colors">
+              Server Preview
+            </button>
+          )}
+          <button onClick={openExternal} className="flex items-center gap-1 text-[11px] text-gray-600 hover:text-gray-300 transition-colors">
+            <Globe size={10} /> Open
+          </button>
+          <button onClick={() => { setKey((k) => k + 1); setError(false); }} className="flex items-center gap-1 text-[11px] text-gray-600 hover:text-gray-300 transition-colors">
+            <RefreshCw size={10} /> Refresh
+          </button>
+        </div>
       </div>
-      <div className="flex-1 overflow-auto flex items-center justify-center bg-[#080808] p-6">
+      <div className="flex-1 overflow-auto flex items-center justify-center bg-[#080808] p-2 sm:p-6">
         <div className={device !== "web" ? `device-${device} overflow-hidden` : "w-full h-full rounded-lg overflow-hidden border border-white/[0.06]"}>
-          <iframe key={key} src={url} title="Preview" className="w-full h-full bg-white"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups" />
+          {error ? (
+            <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-[#0d1117] text-center p-8">
+              <p className="text-sm text-gray-400">Preview failed to load</p>
+              {sandboxId && <button onClick={trySandbox} className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs">Try Server Preview</button>}
+            </div>
+          ) : (
+            <iframe
+              key={key}
+              src={currentUrl}
+              title="Preview"
+              className="w-full h-full bg-white"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+              onError={() => setError(true)}
+            />
+          )}
         </div>
       </div>
     </div>
