@@ -104,8 +104,66 @@ export async function POST(req: NextRequest) {
 
   const ollamaBase = (process.env.OLLAMA_URL ?? "http://localhost:11434").replace(/\/+$/, "");
   let targetUrl = endpointUrl || `${ollamaBase}/api/chat`;
+  const isOpenCodeBridge = targetUrl === "/api/opencode/chat" || targetUrl.includes("/api/opencode/chat");
 
-  // Resolve relative bridge URLs (e.g. /api/opencode/chat) to absolute for server-side fetch
+  // For OpenCode bridge: call OpenCode server directly to avoid Next.js self-fetch deadlock
+  if (isOpenCodeBridge) {
+    const ocBase = (process.env.OPENCODE_URL ?? "http://127.0.0.1:3333").replace(/\/+$/, "");
+    const ocProvider = process.env.OPENCODE_PROVIDER ?? "ollama";
+    const ocModel = process.env.OPENCODE_MODEL ?? "codemax-v3";
+    try {
+      // Create fresh session
+      const sesRes = await fetch(`${ocBase}/session`, { method: "POST", signal: AbortSignal.timeout(5000) });
+      if (!sesRes.ok) throw new Error(`OpenCode session create failed: ${sesRes.status}`);
+      const sesData = await sesRes.json();
+      const sessionId = sesData.id;
+
+      // Extract last user message content
+      const lastUserMsg = [...(messages ?? [])].reverse().find((m: { role: string }) => m.role === "user");
+      const userText = lastUserMsg?.content ?? "";
+
+      // Send prompt (synchronous — waits for full response)
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 180000);
+      const promptRes = await fetch(`${ocBase}/session/${sessionId}/message`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          parts: [{ type: "text", text: userText }],
+          model: { providerID: ocProvider, modelID: ocModel },
+        }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+
+      if (!promptRes.ok) {
+        const errText = await promptRes.text().catch(() => "");
+        return NextResponse.json({ error: `OpenCode: ${promptRes.status}`, detail: errText.slice(0, 500) }, { status: 502 });
+      }
+
+      const result = await promptRes.json();
+      const parts = (result.parts ?? []) as Array<{ type: string; text?: string }>;
+      const assistantText = parts.filter((p) => p.type === "text").map((p) => p.text ?? "").join("\n");
+
+      if (stream) {
+        const encoder = new TextEncoder();
+        const readable = new ReadableStream({
+          start(c) {
+            c.enqueue(encoder.encode(JSON.stringify({ model: `opencode/${ocModel}`, message: { role: "assistant", content: assistantText }, done: false }) + "\n"));
+            c.enqueue(encoder.encode(JSON.stringify({ model: `opencode/${ocModel}`, message: { role: "assistant", content: "" }, done: true }) + "\n"));
+            c.close();
+          },
+        });
+        return new Response(readable, { headers: { "Content-Type": "application/x-ndjson", "Cache-Control": "no-cache", "Transfer-Encoding": "chunked" } });
+      }
+      return NextResponse.json({ model: `opencode/${ocModel}`, message: { role: "assistant", content: assistantText }, done: true });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return NextResponse.json({ error: `OpenCode bridge: ${msg}` }, { status: 502 });
+    }
+  }
+
+  // Resolve other relative bridge URLs to absolute for server-side fetch
   if (targetUrl.startsWith("/")) {
     const origin = req.nextUrl.origin || `http://localhost:${process.env.PORT || 3000}`;
     targetUrl = `${origin}${targetUrl}`;
