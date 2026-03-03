@@ -16,6 +16,7 @@ interface Props {
   files: GeneratedFile[];
   streamingContent: string;
   isStreaming: boolean;
+  templatePreviewUrl?: string | null;
 }
 
 // ── Syntax highlighter ────────────────────────────────────────────
@@ -254,7 +255,7 @@ function CodeEditor({ content, isStreaming }: { content: string; isStreaming: bo
 }
 
 // ── Main ──────────────────────────────────────────────────────────
-export default function CodePanel({ files, streamingContent, isStreaming }: Props) {
+export default function CodePanel({ files, streamingContent, isStreaming, templatePreviewUrl }: Props) {
   const [tab, setTab] = useState<Tab>("code");
   const [device, setDevice] = useState<Device>("web");
   const [activeFile, setActiveFile] = useState<string>("");
@@ -273,11 +274,18 @@ export default function CodePanel({ files, streamingContent, isStreaming }: Prop
     }
   }, [files]);
 
-  // Generate preview URL — try blob URL first, sandbox API as fallback
+  // Generate preview URL — use template URL if provided, otherwise blob + sandbox
   const sandboxIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (prevUrlRef.current && prevUrlRef.current.startsWith("blob:")) URL.revokeObjectURL(prevUrlRef.current);
-    if (files.length === 0) { setPreviewUrl(null); return; }
+    if (files.length === 0 && !templatePreviewUrl) { setPreviewUrl(null); return; }
+
+    // Template files: use the server URL directly (assets need correct relative paths)
+    if (templatePreviewUrl) {
+      prevUrlRef.current = templatePreviewUrl;
+      setPreviewUrl(templatePreviewUrl);
+      return;
+    }
 
     // 1. Try client-side blob URL (instant, works for HTML + React)
     const blobUrl = makePreviewURL(files);
@@ -297,7 +305,6 @@ export default function CodePanel({ files, streamingContent, isStreaming }: Prop
         const data = await res.json();
         if (data.id) {
           sandboxIdRef.current = data.id;
-          // If blob URL didn't work, use sandbox URL
           if (!blobUrl) {
             const sandboxUrl = `/api/sandbox?id=${data.id}&file=index.html`;
             setPreviewUrl(sandboxUrl);
@@ -305,7 +312,7 @@ export default function CodePanel({ files, streamingContent, isStreaming }: Prop
         }
       } catch { /* sandbox creation failed, blob URL still works */ }
     })();
-  }, [files]);
+  }, [files, templatePreviewUrl]);
 
   // Auto-switch to preview tab when generation completes and preview is available
   const wasStreamingRef = useRef(false);

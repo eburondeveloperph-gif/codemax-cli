@@ -86,16 +86,19 @@ function meetsMinimum(text: string): boolean {
 interface Props {
   onUseTemplate: (prompt: string) => void;
   onLoadTemplateFiles: (files: GeneratedFile[]) => void;
+  onTemplatePreviewUrl: (url: string | null) => void;
 }
 
-export default function TemplateGallery({ onUseTemplate, onLoadTemplateFiles }: Props) {
+export default function TemplateGallery({ onUseTemplate, onLoadTemplateFiles, onTemplatePreviewUrl }: Props) {
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [activePage, setActivePage] = useState(0);
 
   const handleSelect = (t: Template) => {
     setSelectedTemplate(t);
     setActivePage(0);
-    // Fetch the template's main HTML and load into code editor
+    // Set the server-served preview URL (assets resolve correctly)
+    onTemplatePreviewUrl(t.previewUrl);
+    // Fetch the template's HTML files and load into code editor
     fetchTemplateFiles(t).then(onLoadTemplateFiles);
   };
 
@@ -106,12 +109,18 @@ export default function TemplateGallery({ onUseTemplate, onLoadTemplateFiles }: 
         activePage={activePage}
         onPageChange={(i) => {
           setActivePage(i);
+          // Update preview URL to this page
+          onTemplatePreviewUrl(selectedTemplate.pages[i].url);
           // Load the selected page's HTML into the code editor
           fetchSinglePage(selectedTemplate.pages[i]).then(f => {
             if (f) onLoadTemplateFiles([f]);
           });
         }}
-        onBack={() => { setSelectedTemplate(null); setActivePage(0); }}
+        onBack={() => {
+          setSelectedTemplate(null);
+          setActivePage(0);
+          onTemplatePreviewUrl(null);
+        }}
         onSend={(prompt) => {
           onUseTemplate(prompt);
           setSelectedTemplate(null);

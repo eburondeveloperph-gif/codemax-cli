@@ -108,6 +108,7 @@ export default function Home() {
   const [streamingContent, setStreamingContent] = useState("");
   const [displayedFiles, setDisplayedFiles] = useState<GeneratedFile[]>([]);
   const [streamingPaths, setStreamingPaths] = useState<string[]>([]);
+  const [templatePreviewUrl, setTemplatePreviewUrl] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
@@ -189,6 +190,7 @@ export default function Home() {
     setIsStreaming(true);
     setStreamingContent("");
     setStreamingPaths([]);
+    setTemplatePreviewUrl(null);
     abortRef.current = new AbortController();
 
     try {
@@ -381,6 +383,7 @@ export default function Home() {
             onDetect={detectEndpoints}
             onSelectEndpoint={setActiveEndpointId}
             onLoadTemplateFiles={setDisplayedFiles}
+            onTemplatePreviewUrl={setTemplatePreviewUrl}
           />
         </div>
       </aside>
@@ -391,6 +394,7 @@ export default function Home() {
           files={displayedFiles}
           streamingContent={streamingContent}
           isStreaming={isStreaming}
+          templatePreviewUrl={templatePreviewUrl}
         />
       </main>
     </div>
