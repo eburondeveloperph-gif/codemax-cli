@@ -3,6 +3,10 @@
 import { CLIEndpoint } from "@/types";
 import { CheckCircle, XCircle, Loader2, Radio } from "lucide-react";
 
+function cleanName(name: string): string {
+  return name.replace(/\s*·\s*Ollama(\s*\(SSH\))?/i, "").replace(/\s*—\s*$/, "").trim() || name;
+}
+
 interface Props {
   endpoints: CLIEndpoint[];
   activeId?: string;
@@ -61,7 +65,7 @@ export default function CLIStatus({
           ) : (
             <XCircle size={12} className="text-red-400 shrink-0" />
           )}
-          <span className="truncate text-left flex-1">{ep.name}</span>
+          <span className="truncate text-left flex-1">{cleanName(ep.name)}</span>
           {ep.model && (
             <span className="shrink-0 text-gray-600 font-mono" title={ep.model}>
               {ep.model.length > 12 ? ep.model.slice(0, 12) + "…" : ep.model}

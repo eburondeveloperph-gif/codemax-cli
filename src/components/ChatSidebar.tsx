@@ -10,6 +10,11 @@ import { Conversation, CLIEndpoint, Message } from "@/types";
 import { ChatGeneratingIndicator } from "./CodeGenerationStatus";
 import TemplateGallery from "./TemplateGallery";
 
+/** Strip source label (e.g. " · Ollama", " (SSH)") from endpoint display name */
+function cleanEndpointName(name: string): string {
+  return name.replace(/\s*·\s*Ollama(\s*\(SSH\))?/i, "").replace(/\s*—\s*$/, "").trim() || name;
+}
+
 const JOKES = [
   "Warming up the hamster wheels…",
   "Downloading more RAM…",
@@ -261,7 +266,7 @@ export default function ChatSidebar({
         >
           {isDetecting ? <Loader2 size={10} className="shrink-0 animate-spin" /> : <Wifi size={10} className="shrink-0" />}
           <span className="flex-1 truncate text-left">
-            {isDetecting ? "Detecting endpoints…" : activeEndpoint ? activeEndpoint.name : "No CLI connected"}
+            {isDetecting ? "Detecting endpoints…" : activeEndpoint ? cleanEndpointName(activeEndpoint.name) : "No CLI connected"}
           </span>
           <ChevronDown size={10} className={`transition-transform ${endpointOpen ? "rotate-180" : ""}`} />
         </button>
@@ -285,7 +290,7 @@ export default function ChatSidebar({
                   {ep.status === "online"
                     ? <CheckCircle size={10} className="text-green-400 shrink-0" />
                     : <XCircle size={10} className="text-red-400 shrink-0" />}
-                  <span className="flex-1 truncate">{ep.name}</span>
+                  <span className="flex-1 truncate">{cleanEndpointName(ep.name)}</span>
                   {ep.model && <span className="text-gray-600 font-mono text-[10px]">{ep.model.split(":")[0]}</span>}
                 </button>
               ))
@@ -353,9 +358,9 @@ export default function ChatSidebar({
         {isStreaming && streamingPaths.length > 0 && (
           <div className="space-y-1 px-1">
             <p className="text-[10px] text-gray-600 uppercase tracking-wider font-semibold">Generating files</p>
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1 overflow-hidden">
               {streamingPaths.map((p, i) => (
-                <span key={p} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-cyan-500/10 border border-cyan-500/20 text-[10px] text-cyan-300 font-mono">
+                <span key={p} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-cyan-500/10 border border-cyan-500/20 text-[10px] text-cyan-300 font-mono truncate max-w-full">
                   <FileCode size={9} className="shrink-0" />
                   {p.split("/").pop()}
                   {i === streamingPaths.length - 1 && <Loader2 size={8} className="animate-spin ml-0.5" />}
@@ -462,8 +467,8 @@ function MessageRow({ msg, jokeText, isStreaming: parentStreaming, streamingPath
           <Cpu size={10} className="text-white" />
         </div>
       )}
-      <div className="max-w-[88%] space-y-1.5">
-        <div className={`rounded-xl px-3 py-2 text-[11px] leading-relaxed ${
+      <div className="min-w-0 max-w-[88%] space-y-1.5">
+        <div className={`rounded-xl px-3 py-2 text-[11px] leading-relaxed overflow-hidden break-words ${
           isUser ? "bg-eburon-600/80 text-white rounded-tr-sm" : "bg-white/[0.04] text-gray-300 rounded-tl-sm border border-white/[0.05]"
         }`}>
           {msg.isStreaming && msg.content === "" ? (
@@ -483,7 +488,7 @@ function MessageRow({ msg, jokeText, isStreaming: parentStreaming, streamingPath
         </div>
         {/* File path chips for completed messages */}
         {filePaths.length > 0 && (
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-1 overflow-hidden">
             {filePaths.map(p => (
               <span key={p} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.06] text-[9px] text-gray-500 font-mono">
                 <FileCode size={8} className="text-cyan-500/60" />{p.split("/").pop()}

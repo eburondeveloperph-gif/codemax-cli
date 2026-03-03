@@ -327,6 +327,8 @@ export default function Home() {
         dbSaveMessage(convId!, { id: aId, role: "assistant", content: full });
         if (finalFiles.length > 0) dbSaveFiles(convId!, finalFiles);
         extractMemories(convId!, text, full);
+        // Auto-backup to local + VPS (fire-and-forget)
+        fetch("/api/db/backup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ targets: ["local", "vps"] }) }).catch(() => {});
       }
     } catch (err: unknown) {
       if (err instanceof Error && err.name !== "AbortError") {
