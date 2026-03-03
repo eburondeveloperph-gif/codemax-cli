@@ -1,0 +1,19 @@
+{
+  "name": "Eburon App",
+  "short_name": "Eburon",
+  "lang": "en-US",
+  "start_url": "login.html",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#0d5afd",
+  "theme_color": "#0d5afd",
+  "description": "Eburon mobile app",
+  "icons": [
+    {
+      "src": "assets/brand/eburon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

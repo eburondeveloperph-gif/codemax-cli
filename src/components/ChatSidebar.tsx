@@ -4,10 +4,11 @@ import { useEffect, useRef, useState, useCallback, KeyboardEvent, ChangeEvent } 
 import {
   Plus, MessageSquare, Trash2, Cpu, Send, Square,
   Wifi, Radio, Loader2, CheckCircle, XCircle, ChevronDown,
-  Paperclip, Mic, MicOff, FileCode,
+  Paperclip, Mic, MicOff, FileCode, Layers,
 } from "lucide-react";
 import { Conversation, CLIEndpoint, Message } from "@/types";
 import { ChatGeneratingIndicator } from "./CodeGenerationStatus";
+import TemplateGallery from "./TemplateGallery";
 
 const JOKES = [
   "Warming up the hamster wheels…",
@@ -74,6 +75,7 @@ export default function ChatSidebar({
   const [jokeIdx, setJokeIdx] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<{ name: string; content: string }[]>([]);
+  const [sidebarTab, setSidebarTab] = useState<"chat" | "templates">("chat");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -178,6 +180,33 @@ export default function ChatSidebar({
           <Plus size={14} />
         </button>
       </div>
+
+      {/* ── Tab switcher: Chat / Templates ── */}
+      <div className="flex border-b border-white/[0.06]">
+        {([["chat", "Chat", <MessageSquare key="c" size={11} />], ["templates", "Templates", <Layers key="t" size={11} />]] as const).map(([key, label, icon]) => (
+          <button
+            key={key}
+            onClick={() => setSidebarTab(key as "chat" | "templates")}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-medium transition-all border-b-2 ${
+              sidebarTab === key
+                ? "text-eburon-400 border-eburon-500"
+                : "text-gray-600 border-transparent hover:text-gray-400 hover:border-white/[0.06]"
+            }`}
+          >
+            {icon}{label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Templates tab ── */}
+      {sidebarTab === "templates" && (
+        <div className="flex-1 overflow-hidden">
+          <TemplateGallery onUseTemplate={(prompt) => { setSidebarTab("chat"); onSend(prompt); }} />
+        </div>
+      )}
+
+      {/* ── Chat tab ── */}
+      {sidebarTab === "chat" && (<>
 
       {/* ── CLI endpoint badge ── */}
       <div className="px-3 py-2 border-b border-white/[0.04]">
@@ -371,6 +400,7 @@ export default function ChatSidebar({
           © {new Date().getFullYear()} Eburon Technologies
         </p>
       </div>
+      </>)}
     </div>
   );
 }
