@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback, KeyboardEvent, ChangeEvent } 
 import {
   Plus, MessageSquare, Trash2, Cpu, Send, Square,
   Wifi, Radio, Loader2, CheckCircle, XCircle, ChevronDown,
-  Paperclip, Mic, MicOff, FileCode, Layers,
+  Paperclip, Mic, MicOff, FileCode, Layers, LogOut,
 } from "lucide-react";
 import { Conversation, CLIEndpoint, Message } from "@/types";
 import { ChatGeneratingIndicator } from "./CodeGenerationStatus";
@@ -68,6 +68,8 @@ interface Props {
   onSelectEndpoint: (id: string) => void;
   onLoadTemplateFiles: (files: import("@/lib/parse-generated-files").GeneratedFile[]) => void;
   onTemplatePreviewUrl: (url: string | null) => void;
+  onSignOut?: () => void;
+  userEmail?: string;
 }
 
 export default function ChatSidebar({
@@ -76,6 +78,7 @@ export default function ChatSidebar({
   isDetecting, isStreaming, streamingPaths, generatedFileCount,
   onNew, onSelect, onDelete,
   onSend, onStop, onDetect, onSelectEndpoint, onLoadTemplateFiles, onTemplatePreviewUrl,
+  onSignOut, userEmail,
 }: Props) {
   const [input, setInput] = useState("");
   const [endpointOpen, setEndpointOpen] = useState(false);
@@ -219,6 +222,15 @@ export default function ChatSidebar({
         >
           <Plus size={14} />
         </button>
+        {onSignOut && (
+          <button
+            onClick={onSignOut}
+            className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-white/[0.06] hover:bg-red-900/30 text-gray-500 hover:text-red-400 transition-colors"
+            title={userEmail ? `Sign out (${userEmail})` : "Sign out"}
+          >
+            <LogOut size={12} />
+          </button>
+        )}
       </div>
 
       {/* ── Tab switcher: Chat / Templates ── */}

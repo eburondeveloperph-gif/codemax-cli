@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import ChatSidebar from "@/components/ChatSidebar";
 import CodePanel from "@/components/CodePanel";
+import { useAuth } from "@/components/AuthProvider";
 import { Conversation, CLIEndpoint, Message } from "@/types";
 import { GeneratedFile, parseGeneratedFiles } from "@/lib/parse-generated-files";
 
@@ -117,6 +119,8 @@ async function dbLoadSessions(): Promise<Conversation[]> {
 }
 
 export default function Home() {
+  const { user, loading, signOut } = useAuth();
+  const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | undefined>();
   const [endpoints, setEndpoints] = useState<CLIEndpoint[]>([]);
@@ -133,7 +137,12 @@ export default function Home() {
   const activeConv = conversations.find((c) => c.id === activeConvId);
   const activeEndpoint = endpoints.find((e) => e.id === activeEndpointId);
 
-  useEffect(() => { detectEndpoints(); loadPersistedSessions(); }, []);
+  // Auth gate — redirect to login if not signed in
+  useEffect(() => {
+    if (!loading && !user) router.replace("/login");
+  }, [user, loading, router]);
+
+  useEffect(() => { if (user) { detectEndpoints(); loadPersistedSessions(); } }, [user]);
 
   const loadPersistedSessions = useCallback(async () => {
     const saved = await dbLoadSessions();
@@ -370,6 +379,14 @@ export default function Home() {
     }
   }, [activeConvId]);
 
+  if (loading || !user) {
+    return (
+      <div className="flex h-dvh items-center justify-center bg-[#0d1117]" style={{ height: "100dvh" }}>
+        <div className="animate-pulse text-gray-500 text-sm">Loading…</div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-dvh bg-[#0d1117] text-white overflow-hidden" style={{ height: "100dvh" }}>
       {/* ── Sidebar toggle ── */}
@@ -406,6 +423,8 @@ export default function Home() {
             onSelectEndpoint={setActiveEndpointId}
             onLoadTemplateFiles={setDisplayedFiles}
             onTemplatePreviewUrl={setTemplatePreviewUrl}
+            onSignOut={signOut}
+            userEmail={user?.email || undefined}
           />
         </div>
       </aside>

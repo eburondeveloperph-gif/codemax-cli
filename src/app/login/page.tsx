@@ -22,7 +22,7 @@ export default function LoginPage() {
   }
 
   if (user) {
-    router.push("/docs");
+    router.push("/");
     return null;
   }
 
@@ -36,7 +36,7 @@ export default function LoginPage() {
       } else {
         await signInWithEmail(email, password);
       }
-      router.push("/docs");
+      router.push("/");
     } catch (err) {
       setError((err as Error).message.replace("Firebase: ", ""));
     } finally {
@@ -49,7 +49,7 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await signInWithGoogle();
-      router.push("/docs");
+      router.push("/");
     } catch (err) {
       setError((err as Error).message.replace("Firebase: ", ""));
     } finally {
@@ -63,8 +63,8 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <img src="https://eburon.ai/icon-eburon.svg" alt="Eburon AI" className="w-16 h-16 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-white">Eburon AI</h1>
-          <p className="text-gray-400 text-sm mt-1">Sign in to access the API &amp; Documentation</p>
+          <h1 className="text-2xl font-bold text-white">Eburon Codepilot</h1>
+          <p className="text-gray-400 text-sm mt-1">Sign in to start building with AI</p>
         </div>
 
         {/* Card */}

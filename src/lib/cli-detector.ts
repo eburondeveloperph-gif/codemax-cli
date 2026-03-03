@@ -211,7 +211,7 @@ export async function detectCLIEndpoints(): Promise<CLIEndpoint[]> {
     try {
       const u = new URL(ollamaUrl);
       if (!LOCALHOST_ALIASES.has(u.hostname)) {
-        hostsToScan.push({ label: `Remote ${u.hostname}`, host: u.hostname, isLocal: false });
+        hostsToScan.push({ label: "EU Server", host: u.hostname, isLocal: false });
       }
     } catch { /* bad URL */ }
   }
@@ -219,7 +219,7 @@ export async function detectCLIEndpoints(): Promise<CLIEndpoint[]> {
   // Add all VPS hosts
   for (const ip of REMOTE_HOSTS) {
     if (!LOCALHOST_ALIASES.has(ip) && !hostsToScan.some(h => h.host === ip)) {
-      hostsToScan.push({ label: `VPS ${ip}`, host: ip, isLocal: false });
+      hostsToScan.push({ label: "PH Local Server", host: ip, isLocal: false });
     }
   }
 

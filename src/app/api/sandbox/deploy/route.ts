@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { takeScreenshots } from "@/lib/browser-agent";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -7,7 +8,6 @@ const VPS_HOST = "168.231.78.113";
 const VPS_USER = "root";
 const VPS_PASS = "Master120221@";
 const SANDBOX_DIR = "/opt/eburon-sandbox";
-const BROWSER_AGENT = "/opt/eburon-sandbox/browser-agent/screenshot.js";
 
 function getTunnelUrl(): string {
   return process.env.EBURON_SANDBOX_TUNNEL || "https://stranger-wave-wider-mighty.trycloudflare.com";
@@ -62,32 +62,15 @@ export async function POST(req: NextRequest) {
     const entryPath = htmlFile ? htmlFile.path.replace(/^\//, "") : "";
     const entryUrl = entryPath ? `${tunnelUrl}/${id}/${entryPath}` : baseUrl;
 
-    // Browser-use agent: take screenshot of deployed app
+    // Browser agent: screenshot via Browserbase (cloud) → VPS fallback
     let screenshotUrl: string | null = null;
     let screenshotMobileUrl: string | null = null;
-    const wantScreenshot = screenshot !== false; // default: take screenshot
+    const wantScreenshot = screenshot !== false;
     if (wantScreenshot) {
       try {
-        const localEntryUrl = `http://localhost:8899/${id}/${entryPath}`;
-        const ssDir = `${SANDBOX_DIR}/${id}`;
-        // Desktop screenshot
-        const result = await sshExec(
-          `cd /opt/eburon-sandbox/browser-agent && node ${BROWSER_AGENT} "${localEntryUrl}" "${ssDir}/screenshot.png" 1280 800`,
-          30000
-        );
-        const parsed = JSON.parse(result);
-        if (parsed.success) {
-          screenshotUrl = `${tunnelUrl}/${id}/screenshot.png`;
-        }
-        // Mobile screenshot
-        const mobileResult = await sshExec(
-          `cd /opt/eburon-sandbox/browser-agent && node ${BROWSER_AGENT} "${localEntryUrl}" "${ssDir}/screenshot-mobile.png" 375 812 true`,
-          30000
-        );
-        const mobileParsed = JSON.parse(mobileResult);
-        if (mobileParsed.success) {
-          screenshotMobileUrl = `${tunnelUrl}/${id}/screenshot-mobile.png`;
-        }
+        const result = await takeScreenshots(entryUrl);
+        if (result.desktop) screenshotUrl = result.desktop;
+        if (result.mobile) screenshotMobileUrl = result.mobile;
       } catch (e) {
         console.warn("[sandbox/deploy] Screenshot failed:", e instanceof Error ? e.message : e);
       }
@@ -120,16 +103,13 @@ export async function GET(req: NextRequest) {
     if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
     try {
       const tunnelUrl = getTunnelUrl();
-      const entryUrl = `http://localhost:8899/${id}/index.html`;
-      const ssDir = `${SANDBOX_DIR}/${id}`;
-      const result = await sshExec(
-        `cd /opt/eburon-sandbox/browser-agent && node ${BROWSER_AGENT} "${entryUrl}" "${ssDir}/screenshot.png" 1280 800`,
-        30000
-      );
-      const parsed = JSON.parse(result);
+      const entryUrl = `${tunnelUrl}/${id}/index.html`;
+      const result = await takeScreenshots(entryUrl);
       return NextResponse.json({
-        ...parsed,
-        screenshotUrl: parsed.success ? `${tunnelUrl}/${id}/screenshot.png` : null,
+        success: !!result.desktop,
+        source: result.source,
+        screenshotUrl: result.desktop || null,
+        screenshotMobileUrl: result.mobile || null,
       });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
