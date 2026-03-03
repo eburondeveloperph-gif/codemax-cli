@@ -371,7 +371,7 @@ export default function Home() {
   }, [activeConvId]);
 
   return (
-    <div className="flex h-screen bg-[#0d1117] text-white overflow-hidden">
+    <div className="flex h-dvh bg-[#0d1117] text-white overflow-hidden" style={{ height: "100dvh" }}>
       {/* ── Sidebar toggle ── */}
       <button
         onClick={() => setSidebarOpen((v) => !v)}

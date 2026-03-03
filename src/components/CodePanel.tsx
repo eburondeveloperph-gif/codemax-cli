@@ -290,19 +290,22 @@ export default function CodePanel({ files, streamingContent, isStreaming, templa
       return;
     }
 
-    // 1. Instant blob preview while deploying
+    // 1. Instant blob preview (always works, no server needed)
     const blobUrl = makePreviewURL(files);
-    if (blobUrl) { prevUrlRef.current = blobUrl; setPreviewUrl(blobUrl); }
+    if (blobUrl) { prevUrlRef.current = blobUrl; setPreviewUrl(blobUrl); setDeployStatus("idle"); }
 
-    // 2. Deploy to VPS sandbox (HTTPS tunnel) + browser-agent screenshot
-    setDeployStatus("deploying");
+    // 2. Deploy to VPS sandbox in background (upgrade preview if successful)
+    if (blobUrl) setDeployStatus("deploying");
     setScreenshotUrl(null);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
     (async () => {
       try {
         const res = await fetch("/api/sandbox/deploy", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ files: files.map(f => ({ path: f.path, content: f.content })) }),
+          signal: controller.signal,
         });
         const data = await res.json();
         if (data.previewUrl) {
@@ -312,9 +315,10 @@ export default function CodePanel({ files, streamingContent, isStreaming, templa
           if (data.screenshotUrl) setScreenshotUrl(data.screenshotUrl);
           return;
         }
-      } catch { /* VPS deploy failed */ }
+      } catch { /* VPS deploy failed or timed out */ }
+      clearTimeout(timeout);
+      setDeployStatus(blobUrl ? "idle" : "deploying");
       // Fallback: local sandbox
-      setDeployStatus("idle");
       try {
         const res = await fetch("/api/sandbox", {
           method: "POST",
@@ -327,6 +331,7 @@ export default function CodePanel({ files, streamingContent, isStreaming, templa
           if (!blobUrl) setPreviewUrl(`/api/sandbox?id=${data.id}&file=index.html`);
         }
       } catch { /* both failed, blob URL is fine */ }
+      setDeployStatus("idle");
     })();
   }, [files, templatePreviewUrl]);
 
@@ -523,8 +528,11 @@ function PreviewFrame({ url, device, sandboxId, deployStatus, screenshotUrl }: {
           </div>
         </div>
       )}
-      <div className="flex-1 overflow-auto flex items-center justify-center bg-[#080808] p-2 sm:p-6">
-        <div className={device !== "web" ? `device-${device} overflow-hidden` : "w-full h-full rounded-lg overflow-hidden border border-white/[0.06]"}>
+      <div className="flex-1 overflow-hidden flex items-center justify-center bg-[#080808] p-2 sm:p-4">
+        <div className={device !== "web"
+          ? `device-${device} overflow-hidden flex-shrink-0`
+          : "w-full h-full rounded-lg overflow-hidden border border-white/[0.06]"
+        } style={device === "web" ? { minHeight: 0 } : undefined}>
           {showScreenshot && screenshotUrl ? (
             <div className="w-full h-full flex items-center justify-center bg-[#0d1117] overflow-auto">
               <img src={screenshotUrl} alt="Browser screenshot" className="max-w-full max-h-full object-contain" />
