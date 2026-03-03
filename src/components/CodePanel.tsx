@@ -277,9 +277,10 @@ export default function CodePanel({ files, streamingContent, isStreaming, templa
   // Generate preview — template URL > VPS deploy > blob fallback
   const sandboxIdRef = useRef<string | null>(null);
   const [deployStatus, setDeployStatus] = useState<"idle" | "deploying" | "live">("idle");
+  const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
   useEffect(() => {
     if (prevUrlRef.current && prevUrlRef.current.startsWith("blob:")) URL.revokeObjectURL(prevUrlRef.current);
-    if (files.length === 0 && !templatePreviewUrl) { setPreviewUrl(null); setDeployStatus("idle"); return; }
+    if (files.length === 0 && !templatePreviewUrl) { setPreviewUrl(null); setDeployStatus("idle"); setScreenshotUrl(null); return; }
 
     // Template: use server URL directly
     if (templatePreviewUrl) {
@@ -293,8 +294,9 @@ export default function CodePanel({ files, streamingContent, isStreaming, templa
     const blobUrl = makePreviewURL(files);
     if (blobUrl) { prevUrlRef.current = blobUrl; setPreviewUrl(blobUrl); }
 
-    // 2. Deploy to VPS sandbox (HTTPS tunnel)
+    // 2. Deploy to VPS sandbox (HTTPS tunnel) + browser-agent screenshot
     setDeployStatus("deploying");
+    setScreenshotUrl(null);
     (async () => {
       try {
         const res = await fetch("/api/sandbox/deploy", {
@@ -307,6 +309,7 @@ export default function CodePanel({ files, streamingContent, isStreaming, templa
           sandboxIdRef.current = data.id;
           setPreviewUrl(data.previewUrl);
           setDeployStatus("live");
+          if (data.screenshotUrl) setScreenshotUrl(data.screenshotUrl);
           return;
         }
       } catch { /* VPS deploy failed */ }
@@ -424,7 +427,7 @@ export default function CodePanel({ files, streamingContent, isStreaming, templa
       {tab === "preview" && (
         <>
           {previewUrl
-            ? <PreviewFrame url={previewUrl} device={device} sandboxId={sandboxIdRef.current} deployStatus={deployStatus} />
+            ? <PreviewFrame url={previewUrl} device={device} sandboxId={sandboxIdRef.current} deployStatus={deployStatus} screenshotUrl={screenshotUrl} />
             : isStreaming
               ? <Msg icon={<Eye size={24} />} title="Preview building…" sub="Code is being generated — preview will appear automatically" />
               : hasFiles
@@ -446,17 +449,19 @@ export default function CodePanel({ files, streamingContent, isStreaming, templa
   );
 }
 
-function PreviewFrame({ url, device, sandboxId, deployStatus }: { url: string; device: Device; sandboxId?: string | null; deployStatus?: "idle" | "deploying" | "live" }) {
+function PreviewFrame({ url, device, sandboxId, deployStatus, screenshotUrl }: { url: string; device: Device; sandboxId?: string | null; deployStatus?: "idle" | "deploying" | "live"; screenshotUrl?: string | null }) {
   const [key, setKey] = useState(0);
   const [currentUrl, setCurrentUrl] = useState(url);
   const [error, setError] = useState(false);
+  const [showScreenshot, setShowScreenshot] = useState(false);
 
-  useEffect(() => { setCurrentUrl(url); setError(false); }, [url]);
+  useEffect(() => { setCurrentUrl(url); setError(false); setShowScreenshot(false); }, [url]);
 
   const trySandbox = () => {
     if (sandboxId) {
       setCurrentUrl(`/api/sandbox?id=${sandboxId}&file=index.html`);
       setError(false);
+      setShowScreenshot(false);
       setKey(k => k + 1);
     }
   };
@@ -491,6 +496,11 @@ function PreviewFrame({ url, device, sandboxId, deployStatus }: { url: string; d
           )}
         </div>
         <div className="flex items-center gap-3">
+          {screenshotUrl && (
+            <button onClick={() => setShowScreenshot(v => !v)} className={`flex items-center gap-1 text-[11px] transition-colors ${showScreenshot ? "text-cyan-400" : "text-gray-600 hover:text-gray-300"}`}>
+              📸 {showScreenshot ? "Live View" : "Screenshot"}
+            </button>
+          )}
           {sandboxId && !isTunnel && (
             <button onClick={trySandbox} className="flex items-center gap-1 text-[11px] text-cyan-500 hover:text-cyan-400 transition-colors">
               Server Preview
@@ -499,7 +509,7 @@ function PreviewFrame({ url, device, sandboxId, deployStatus }: { url: string; d
           <button onClick={openExternal} className="flex items-center gap-1 text-[11px] text-gray-600 hover:text-gray-300 transition-colors">
             <Globe size={10} /> Open
           </button>
-          <button onClick={() => { setKey((k) => k + 1); setError(false); }} className="flex items-center gap-1 text-[11px] text-gray-600 hover:text-gray-300 transition-colors">
+          <button onClick={() => { setKey((k) => k + 1); setError(false); setShowScreenshot(false); }} className="flex items-center gap-1 text-[11px] text-gray-600 hover:text-gray-300 transition-colors">
             <RefreshCw size={10} /> Refresh
           </button>
         </div>
@@ -515,9 +525,16 @@ function PreviewFrame({ url, device, sandboxId, deployStatus }: { url: string; d
       )}
       <div className="flex-1 overflow-auto flex items-center justify-center bg-[#080808] p-2 sm:p-6">
         <div className={device !== "web" ? `device-${device} overflow-hidden` : "w-full h-full rounded-lg overflow-hidden border border-white/[0.06]"}>
-          {error ? (
+          {showScreenshot && screenshotUrl ? (
+            <div className="w-full h-full flex items-center justify-center bg-[#0d1117] overflow-auto">
+              <img src={screenshotUrl} alt="Browser screenshot" className="max-w-full max-h-full object-contain" />
+            </div>
+          ) : error ? (
             <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-[#0d1117] text-center p-8">
               <p className="text-sm text-gray-400">Preview failed to load</p>
+              {screenshotUrl && (
+                <button onClick={() => setShowScreenshot(true)} className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs">📸 View Screenshot</button>
+              )}
               {sandboxId && <button onClick={trySandbox} className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs">Try Server Preview</button>}
             </div>
           ) : (
