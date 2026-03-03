@@ -380,6 +380,7 @@ export default function Home() {
             onStop={handleStop}
             onDetect={detectEndpoints}
             onSelectEndpoint={setActiveEndpointId}
+            onLoadTemplateFiles={setDisplayedFiles}
           />
         </div>
       </aside>

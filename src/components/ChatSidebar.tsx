@@ -61,6 +61,7 @@ interface Props {
   onStop: () => void;
   onDetect: () => void;
   onSelectEndpoint: (id: string) => void;
+  onLoadTemplateFiles: (files: import("@/lib/parse-generated-files").GeneratedFile[]) => void;
 }
 
 export default function ChatSidebar({
@@ -68,7 +69,7 @@ export default function ChatSidebar({
   endpoints, activeEndpoint,
   isDetecting, isStreaming, streamingPaths, generatedFileCount,
   onNew, onSelect, onDelete,
-  onSend, onStop, onDetect, onSelectEndpoint,
+  onSend, onStop, onDetect, onSelectEndpoint, onLoadTemplateFiles,
 }: Props) {
   const [input, setInput] = useState("");
   const [endpointOpen, setEndpointOpen] = useState(false);
@@ -201,7 +202,7 @@ export default function ChatSidebar({
       {/* ── Templates tab ── */}
       {sidebarTab === "templates" && (
         <div className="flex-1 overflow-hidden">
-          <TemplateGallery onUseTemplate={(prompt) => { setSidebarTab("chat"); onSend(prompt); }} />
+          <TemplateGallery onUseTemplate={(prompt) => { setSidebarTab("chat"); onSend(prompt); }} onLoadTemplateFiles={onLoadTemplateFiles} />
         </div>
       )}
 
