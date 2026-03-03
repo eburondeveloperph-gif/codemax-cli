@@ -19,6 +19,10 @@ function extractStreamingPaths(content: string): string[] {
   for (const m of content.matchAll(/```\w*\s+([\w][\w\-./]*\.\w+)/g)) {
     if (!seen.has(m[1])) { seen.add(m[1]); paths.push(m[1]); }
   }
+  // Path on the line after ```lang (model puts filename on next line)
+  for (const m of content.matchAll(/```\w*\n([\w][\w\-./]*\.(?:tsx?|jsx?|css|html|json|md|py|go|rs|ya?ml|sh|toml))\s*\n/g)) {
+    if (!seen.has(m[1])) { seen.add(m[1]); paths.push(m[1]); }
+  }
   // Context lines: **path**, `path`, ### path
   for (const m of content.matchAll(/(?:\*\*`?|#{1,4}\s+|`)([\w][\w\-./]*\.(?:tsx?|jsx?|css|html|json|md|py|go|rs|ya?ml|sh|toml))`?\*?\*?/g)) {
     if (!seen.has(m[1])) { seen.add(m[1]); paths.push(m[1]); }
@@ -219,8 +223,15 @@ export default function Home() {
             if (clean === "[DONE]") continue;
             try {
               const j = JSON.parse(clean);
-              const delta = j.choices?.[0]?.delta?.content || j.message?.content || j.content || "";
-              if (delta) {
+              // Ollama streaming: {"message":{"content":"token"},"done":false}
+              // Ollama non-chat: {"response":"token","done":false}
+              // OpenAI-compat: {"choices":[{"delta":{"content":"token"}}]}
+              const delta = j.choices?.[0]?.delta?.content
+                || j.message?.content
+                || j.response
+                || j.content
+                || "";
+              if (delta && !j.done) {
                 full += delta;
                 setStreamingContent(full);
                 updateConversation(convId!, (c) => ({
@@ -229,7 +240,7 @@ export default function Home() {
                 }));
               }
             } catch {
-              if (clean) {
+              if (clean && clean !== "undefined") {
                 full += clean;
                 setStreamingContent(full);
                 updateConversation(convId!, (c) => ({

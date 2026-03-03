@@ -1,10 +1,11 @@
 FROM codemax:latest
 
-PARAMETER temperature 0.7
-PARAMETER top_p 0.9
-PARAMETER top_k 40
-PARAMETER repeat_penalty 1.1
-PARAMETER num_ctx 202752
+PARAMETER temperature 0.3
+PARAMETER top_p 0.85
+PARAMETER top_k 30
+PARAMETER repeat_penalty 1.02
+PARAMETER num_ctx 32768
+PARAMETER num_predict 16384
 
 LICENSE """
 Eburon AI Private Model License (EAPML) v1.0

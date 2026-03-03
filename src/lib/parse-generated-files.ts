@@ -67,6 +67,22 @@ export function parseGeneratedFiles(text: string): GeneratedFile[] {
     // 1. Path inline with fence: ```tsx src/App.tsx
     let path = looksLikePath(afterFence) ? afterFence : "";
 
+    // 1b. Path on first line of block (model puts filename on line after fence)
+    if (!path && bodyLines.length > 0) {
+      const firstLine = bodyLines[0].trim();
+      if (looksLikePath(firstLine) && !firstLine.includes(" ")) {
+        path = firstLine;
+        // Remove the path line from content
+        const contentWithoutPath = bodyLines.slice(1).join("\n").trimEnd();
+        if (contentWithoutPath.trim()) {
+          // Only use this if there's actual content after the path
+          files.push({ path, content: contentWithoutPath, language: lang || inferLang(path) });
+          seen.add(path);
+          continue;
+        }
+      }
+    }
+
     // 2. Context above: **src/App.tsx**, `src/App.tsx`, ### src/App.tsx
     if (!path) {
       const start = Math.max(0, i - bodyLines.length - 6);

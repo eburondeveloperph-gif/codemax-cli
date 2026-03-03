@@ -41,12 +41,20 @@ function hl(raw: string): string {
 function extractLiveCode(content: string): { code: string; language: string; path: string } {
   const lines = content.split("\n");
   let inBlock = false, lang = "", path = "", bodyLines: string[] = [];
+  const FILE_RE = /^[\w][\w\-./]*\.\w+$/;
   for (const line of lines) {
     const m = line.match(/^```(\w*)\s*(.*)$/);
     if (m) {
       if (!inBlock) { inBlock = true; lang = m[1] || "text"; path = m[2]?.trim() || ""; bodyLines = []; }
       else { inBlock = false; bodyLines = []; }
-    } else if (inBlock) { bodyLines.push(line); }
+    } else if (inBlock) {
+      // If first line of block looks like a file path, capture it as path
+      if (bodyLines.length === 0 && !path && FILE_RE.test(line.trim())) {
+        path = line.trim();
+      } else {
+        bodyLines.push(line);
+      }
+    }
   }
   return { code: inBlock ? bodyLines.join("\n") : "", language: lang || "text", path };
 }
