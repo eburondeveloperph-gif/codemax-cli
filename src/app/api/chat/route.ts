@@ -103,7 +103,13 @@ export async function POST(req: NextRequest) {
   const { messages, endpointUrl, stream, model } = await req.json();
 
   const ollamaBase = (process.env.OLLAMA_URL ?? "http://localhost:11434").replace(/\/+$/, "");
-  const targetUrl = endpointUrl || `${ollamaBase}/api/chat`;
+  let targetUrl = endpointUrl || `${ollamaBase}/api/chat`;
+
+  // Resolve relative bridge URLs (e.g. /api/opencode/chat) to absolute for server-side fetch
+  if (targetUrl.startsWith("/")) {
+    const origin = req.nextUrl.origin || `http://localhost:${process.env.PORT || 3000}`;
+    targetUrl = `${origin}${targetUrl}`;
+  }
 
   // Prepend system prompt (preserve images field on user messages for Ollama vision)
   let enrichedMessages = messages?.[0]?.role === "system"

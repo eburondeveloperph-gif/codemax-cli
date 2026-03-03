@@ -276,6 +276,37 @@ export async function detectCLIEndpoints(): Promise<CLIEndpoint[]> {
     }
   }
 
+  // ── OpenCode autonomous agent (local server) ──
+  const ocBase = (process.env.OPENCODE_URL ?? "http://127.0.0.1:3333").replace(/\/+$/, "");
+  const ocHealthRes = await fetchWithTimeout(`${ocBase}/global/health`, { timeoutMs: 3000 });
+  if (ocHealthRes?.ok) {
+    try {
+      const ocData = await ocHealthRes.json();
+      const ocModel = process.env.OPENCODE_MODEL ?? "codemax-v3";
+      const ocProvider = process.env.OPENCODE_PROVIDER ?? "ollama";
+      detected.push({
+        id: "opencode-agent",
+        name: `PH Server2 · OpenCode — ${ocModel}`,
+        url: "/api/opencode/chat",
+        status: "online",
+        type: "http",
+        version: ocData.version,
+        model: `${ocProvider}/${ocModel}`,
+        lastChecked: now,
+      });
+    } catch { /* parse error */ }
+  } else {
+    detected.push({
+      id: "opencode-agent-offline",
+      name: "PH Server2 · OpenCode",
+      url: "/api/opencode/chat",
+      status: "offline",
+      type: "http",
+      model: "ollama/codemax-v3",
+      lastChecked: now,
+    });
+  }
+
   // ── 2. Scan all hosts in parallel ──
   const scanResults = await Promise.all(hostsToScan.map(async ({ label, host, isLocal }) => {
     const services = await scanHost(host);
