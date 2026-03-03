@@ -62,7 +62,7 @@ interface Props {
   onNew: () => void;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
-  onSend: (text: string) => void;
+  onSend: (text: string, images?: string[]) => void;
   onStop: () => void;
   onDetect: () => void;
   onSelectEndpoint: (id: string) => void;
@@ -161,6 +161,7 @@ export default function ChatSidebar({
     if (isStreaming || !activeEndpoint) return;
 
     // Handle attached files (images + code)
+    let imageBase64s: string[] | undefined;
     if (attachedFiles.length > 0) {
       const codeFiles = attachedFiles.filter(f => !f.isImage);
       const imageFiles = attachedFiles.filter(f => f.isImage);
@@ -171,24 +172,16 @@ export default function ChatSidebar({
         text = fileContext + (text ? `\n\n${text}` : "\n\nPlease analyze these files.");
       }
 
-      // Images: analyze via vision API (fire-and-forget, add description to context)
+      // Images: pass base64 data through to chat API for Ollama vision
       if (imageFiles.length > 0) {
-        const imgNames = imageFiles.map(f => f.name).join(", ");
-        text = `[Images attached: ${imgNames}]\n${text || "Describe what you see in this image."}`;
-        // Send to vision API in background
-        imageFiles.forEach(f => {
-          fetch("/api/vision", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ image: f.content, prompt: text }),
-          }).catch(() => {});
-        });
+        imageBase64s = imageFiles.map(f => f.content);
+        if (!text) text = "Describe what you see in this image.";
       }
 
       setAttachedFiles([]);
     }
 
-    onSend(text);
+    onSend(text, imageBase64s);
     setInput("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
   }
@@ -471,6 +464,7 @@ function MessageRow({ msg, jokeText, isStreaming: parentStreaming, streamingPath
   const displayText = isUser ? msg.content : stripCode(msg.content);
   // Extract file paths from completed assistant messages
   const filePaths = !isUser && !msg.isStreaming ? extractFilePaths(msg.content) : [];
+  const hasImages = isUser && msg.images && msg.images.length > 0;
 
   return (
     <div className={`flex gap-2 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
@@ -480,6 +474,14 @@ function MessageRow({ msg, jokeText, isStreaming: parentStreaming, streamingPath
         </div>
       )}
       <div className="min-w-0 max-w-[88%] space-y-1.5">
+        {/* Image thumbnails */}
+        {hasImages && (
+          <div className={`flex flex-wrap gap-1 ${isUser ? "justify-end" : "justify-start"}`}>
+            {msg.images!.map((img, i) => (
+              <img key={i} src={img} alt={`Attached ${i + 1}`} className="w-16 h-16 rounded-lg object-cover border border-white/10" />
+            ))}
+          </div>
+        )}
         <div className={`rounded-xl px-3 py-2 text-[11px] leading-relaxed overflow-hidden break-words ${
           isUser ? "bg-eburon-600/80 text-white rounded-tr-sm" : "bg-white/[0.04] text-gray-300 rounded-tl-sm border border-white/[0.05]"
         }`}>

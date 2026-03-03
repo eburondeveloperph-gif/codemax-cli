@@ -192,13 +192,13 @@ export default function Home() {
     setConversations((prev) => prev.map((c) => (c.id === id ? updater(c) : c)));
   }, []);
 
-  const handleSend = useCallback(async (text: string) => {
+  const handleSend = useCallback(async (text: string, images?: string[]) => {
     if (!activeEndpoint) return;
 
     let convId = activeConvId;
     if (!convId) convId = createConversation();
 
-    const userMsg: Message = { id: generateId(), role: "user", content: text, timestamp: new Date() };
+    const userMsg: Message = { id: generateId(), role: "user", content: text, timestamp: new Date(), ...(images ? { images } : {}) };
     const aId = generateId();
     const assistantMsg: Message = { id: aId, role: "assistant", content: "", timestamp: new Date(), isStreaming: true };
 
@@ -223,8 +223,12 @@ export default function Home() {
 
     try {
       const history = [
-        ...(conversations.find((c) => c.id === convId)?.messages ?? []).map((m) => ({ role: m.role, content: m.content })),
-        { role: "user", content: text },
+        ...(conversations.find((c) => c.id === convId)?.messages ?? []).map((m) => {
+          const entry: Record<string, unknown> = { role: m.role, content: m.content };
+          if (m.images?.length) entry.images = m.images;
+          return entry;
+        }),
+        { role: "user", content: text, ...(images?.length ? { images } : {}) },
       ];
 
       const res = await fetch("/api/chat", {

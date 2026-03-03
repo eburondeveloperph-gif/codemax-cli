@@ -6,6 +6,7 @@ export interface Message {
   content: string;
   timestamp: Date;
   isStreaming?: boolean;
+  images?: string[];
 }
 
 export interface Conversation {

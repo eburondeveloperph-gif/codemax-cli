@@ -105,10 +105,18 @@ export async function POST(req: NextRequest) {
   const ollamaBase = (process.env.OLLAMA_URL ?? "http://localhost:11434").replace(/\/+$/, "");
   const targetUrl = endpointUrl || `${ollamaBase}/api/chat`;
 
-  // Prepend system prompt
+  // Prepend system prompt (preserve images field on user messages for Ollama vision)
   let enrichedMessages = messages?.[0]?.role === "system"
     ? messages
     : [SYSTEM_PROMPT, ...(messages ?? [])];
+
+  // Strip data URL prefixes from image base64 for Ollama compatibility
+  enrichedMessages = enrichedMessages.map((m: { role: string; content: string; images?: string[] }) => {
+    if (m.images?.length) {
+      return { ...m, images: m.images.map((img: string) => img.replace(/^data:image\/\w+;base64,/, "")) };
+    }
+    return m;
+  });
 
   // Augment the latest user message with mode-aware format enforcement
   const lastIdx = enrichedMessages.length - 1;
