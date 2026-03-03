@@ -281,16 +281,19 @@ export async function POST(req: NextRequest) {
     const json = await upstream.json();
     return NextResponse.json(json);
   } catch (err) {
-    // If the target wasn't localhost, retry via localhost as fallback
-    const localhostChat = `${(process.env.OLLAMA_URL ?? "http://localhost:11434").replace(/\/+$/, "")}/api/chat`;
+    // If the target failed, retry via localhost Ollama as fallback
+    const localhostChat = "http://localhost:11434/api/chat";
     if (targetUrl !== localhostChat) {
       try {
+        // Ensure model is set for fallback (Ollama requires it)
+        const fallbackBody = { ...bodyObj };
+        if (!fallbackBody.model) fallbackBody.model = "eburonmax/codemax-v3";
         const ctrl2 = new AbortController();
-        const t2 = setTimeout(() => ctrl2.abort(), 30000);
+        const t2 = setTimeout(() => ctrl2.abort(), 120000);
         const fallback = await fetch(localhostChat, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(bodyObj),
+          body: JSON.stringify(fallbackBody),
           signal: ctrl2.signal,
         });
         clearTimeout(t2);
