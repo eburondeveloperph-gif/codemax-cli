@@ -16,6 +16,34 @@
 
 ---
 
+## Codemax Locked OpenCode Profile
+
+This repository includes a locked OpenCode profile that:
+
+- uses `ollama/codemax:latest` as default and small model
+- enables only the Ollama provider
+- whitelists only `codemax:latest`
+- sets `codemax-skill` as default agent
+- disables `Ctrl+P` and model/provider switching keybinds
+
+Files:
+
+- `config/opencode.json`
+- `config/tui.json`
+- `bin/codemax` (launcher with `OPENCODE_CLIENT=codemax`)
+
+Quick apply on macOS/Linux:
+
+```bash
+mkdir -p ~/.config/opencode
+cp config/opencode.json ~/.config/opencode/opencode.json
+cp config/tui.json ~/.config/opencode/tui.json
+chmod +x bin/codemax
+./bin/codemax
+```
+
+---
+
 ## Capability Profile (Deep Technical)
 
 - **Agentic code synthesis & lifecycle closure**
