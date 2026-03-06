@@ -44,6 +44,59 @@ chmod +x bin/codemax
 
 ---
 
+## Deploy Codemax CLI (One-Liners)
+
+Single bash command:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/eburondeveloperph-gif/codemax-cli/main/setup.sh)
+```
+
+Curl command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/eburondeveloperph-gif/codemax-cli/main/setup.sh | bash
+```
+
+CLI landing page (HTML/CSS/JS docs):
+
+```text
+/public/cli-landing/index.html
+```
+
+When running the app locally, open:
+
+```text
+http://localhost:3000/cli-landing/
+```
+
+---
+
+## OpenAI-Compatible API
+
+After setup, Codemax is available through Ollama's OpenAI-compatible endpoint.
+
+Base URL:
+
+```text
+http://127.0.0.1:11434/v1
+```
+
+Chat Completions (`curl`) example:
+
+```bash
+curl -sS http://127.0.0.1:11434/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "codemax:latest",
+    "messages": [
+      { "role": "user", "content": "Create a hello world API in Node.js." }
+    ]
+  }'
+```
+
+---
+
 ## Capability Profile (Deep Technical)
 
 - **Agentic code synthesis & lifecycle closure**

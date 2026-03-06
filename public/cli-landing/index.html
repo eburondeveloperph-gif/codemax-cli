@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Eburon AI Codemax CLI</title>
+    <meta
+      name="description"
+      content="Codemax CLI landing page and deployment documentation for Eburon AI."
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="bg-glow bg-glow-a"></div>
+    <div class="bg-glow bg-glow-b"></div>
+
+    <header class="hero">
+      <p class="eyebrow">Eburon AI</p>
+      <h1>Codemax CLI</h1>
+      <p class="subtitle">
+        Autonomous coding CLI with chat, TUI, web mode, and OpenAI-compatible
+        local API.
+      </p>
+      <div class="hero-actions">
+        <a
+          class="btn btn-primary"
+          href="https://github.com/eburondeveloperph-gif/codemax-cli"
+          target="_blank"
+          rel="noreferrer"
+        >
+          GitHub Repository
+        </a>
+        <a class="btn btn-secondary" href="#deploy">Deployment Docs</a>
+      </div>
+    </header>
+
+    <main class="docs">
+      <section class="card" id="install">
+        <h2>NPM Installation</h2>
+        <p>Install project dependencies and build the CLI:</p>
+        <div class="code-wrap">
+          <pre id="cmd-install"><code>npm install && cd cli && npm install && npm run build && cd ..</code></pre>
+          <button class="copy-btn" data-copy-target="cmd-install">Copy</button>
+        </div>
+      </section>
+
+      <section class="card" id="deploy">
+        <h2>Deploy</h2>
+        <p>Run the one-command deploy/setup flow:</p>
+        <div class="code-wrap">
+          <pre id="cmd-deploy"><code>npm run deploy</code></pre>
+          <button class="copy-btn" data-copy-target="cmd-deploy">Copy</button>
+        </div>
+      </section>
+
+      <section class="card" id="commands">
+        <h2>Codemax NPM Commands</h2>
+        <p>Use these updated command aliases from the project root:</p>
+        <div class="code-wrap">
+          <pre id="cmd-aliases"><code>npm run codemax
+npm run codemax:install
+npm run codemax:dev
+npm run codemax:build</code></pre>
+          <button class="copy-btn" data-copy-target="cmd-aliases">Copy</button>
+        </div>
+      </section>
+
+      <section class="card" id="modes">
+        <h2>CLI Modes</h2>
+        <div class="code-wrap">
+          <pre id="cmd-modes"><code>node cli/dist/cli.js chat
+node cli/dist/cli.js tui
+node cli/dist/cli.js start</code></pre>
+          <button class="copy-btn" data-copy-target="cmd-modes">Copy</button>
+        </div>
+      </section>
+
+      <section class="card" id="api">
+        <h2>OpenAI-Compatible API</h2>
+        <p>Codemax via Ollama OpenAI endpoint:</p>
+        <div class="code-wrap">
+          <pre id="cmd-openai"><code>curl -sS http://127.0.0.1:11434/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "codemax:latest",
+    "messages": [
+      { "role": "user", "content": "Generate a Node.js hello world API." }
+    ]
+  }'</code></pre>
+          <button class="copy-btn" data-copy-target="cmd-openai">Copy</button>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>
+        Codemax CLI by Eburon AI •
+        <a
+          href="https://github.com/eburondeveloperph-gif/codemax-cli"
+          target="_blank"
+          rel="noreferrer"
+        >
+          github.com/eburondeveloperph-gif/codemax-cli
+        </a>
+      </p>
+    </footer>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
